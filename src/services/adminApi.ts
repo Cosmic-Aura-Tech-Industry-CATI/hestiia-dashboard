@@ -76,7 +76,7 @@ export const adminApi = {
     if (params?.available) query.set('available', params.available);
     if (params?.search) query.set('search', params.search);
     if (params?.page) query.set('page', String(params.page));
-    if (params?.limit) query.set('limit', String(params.limit));
+    query.set('limit', String(params?.limit || 500));
     return ApiClient.get<{ success: boolean; dishes: FoodItem[]; total: number; page: number; totalPages: number }>(
       `/admin/menu/admin/all?${query.toString()}`
     );
