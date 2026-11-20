@@ -1,6 +1,8 @@
+'use client';
+
 import React from 'react';
 import { Menu, Plus, ShoppingBag, ExternalLink, ShieldCheck, Bell } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { AdminUser, RestaurantSettings } from '../../types';
 
 interface AdminHeaderProps {
@@ -35,7 +37,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ user, settings, onTogg
       {/* Right: Quick actions & user info */}
       <div className="flex items-center space-x-2.5">
         <Link
-          to="/admin/orders"
+          href="/admin/orders"
           className="p-2 rounded-xl bg-charcoal hover:bg-charcoal/80 border border-charcoal-border text-beige hover:text-gold text-xs transition-colors relative"
           title="Orders"
         >
@@ -43,7 +45,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ user, settings, onTogg
         </Link>
 
         <Link
-          to="/admin/menu?new=true"
+          href="/admin/menu?new=true"
           className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gold text-charcoal-950 font-bold text-xs uppercase tracking-wider shadow-gold-sm hover:bg-gold-dark transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -51,7 +53,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ user, settings, onTogg
         </Link>
 
         <a
-          href="/"
+          href={process.env.NEXT_PUBLIC_SITE_URL || '/'}
           target="_blank"
           rel="noreferrer"
           className="hidden md:inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-charcoal border border-charcoal-border hover:border-gold/30 text-beige hover:text-warmwhite text-xs transition-all"

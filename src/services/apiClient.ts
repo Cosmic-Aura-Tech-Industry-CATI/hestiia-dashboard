@@ -16,10 +16,10 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
-  private static baseURL = (import.meta as any).env?.VITE_API_URL || '/api';
+  private static baseURL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
   public static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = localStorage.getItem('hestiia_admin_token');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hestiia_admin_token') : null;
     const headers = new Headers(options.headers || {});
 
     if (token) {
@@ -42,7 +42,7 @@ export class ApiClient {
 
       if (!res.ok) {
         // If 401 Unauthorized on admin endpoint, clear auth
-        if (res.status === 401 && endpoint.includes('/admin')) {
+        if (res.status === 401 && endpoint.includes('/admin') && typeof window !== 'undefined') {
           localStorage.removeItem('hestiia_admin_token');
           localStorage.removeItem('hestiia_admin_user');
           if (!window.location.pathname.includes('/login')) {

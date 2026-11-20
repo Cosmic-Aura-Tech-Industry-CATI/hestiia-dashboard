@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useRef } from 'react';
 import { UploadCloud, Image as ImageIcon, CheckCircle2, AlertCircle } from 'lucide-react';
 import { adminApi } from '../../services/adminApi';

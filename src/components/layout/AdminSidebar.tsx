@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -48,7 +51,7 @@ const navItems = [
 ];
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClose, onLogout }) => {
-  const location = useLocation();
+  const pathname = usePathname() || '';
 
   return (
     <>
@@ -69,7 +72,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
         {/* Brand Header */}
         <div>
           <div className="h-16 px-5 border-b border-charcoal-border flex items-center justify-between">
-            <Link to="/admin/dashboard" className="flex items-center space-x-3 group">
+            <Link href="/admin/dashboard" className="flex items-center space-x-3 group">
               <div className="relative flex items-center justify-center p-0.5 rounded-xl border border-gold/40 bg-black shadow-md overflow-hidden group-hover:border-gold transition-colors">
                 <img
                   src="/brand-icon.jpg"
@@ -100,13 +103,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
-                location.pathname === item.path ||
-                (item.path !== '/admin/dashboard' && location.pathname.startsWith(item.path));
+                pathname === item.path ||
+                (item.path !== '/admin/dashboard' && pathname.startsWith(item.path));
 
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
+                  href={item.path}
                   onClick={() => onClose()}
                   className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all group ${
                     isActive
@@ -151,7 +154,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
           </div>
 
           <a
-            href="/"
+            href={process.env.NEXT_PUBLIC_SITE_URL || '/'}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-lg bg-charcoal border border-charcoal-border hover:border-gold/30 text-beige hover:text-gold text-[11px] font-medium transition-all"

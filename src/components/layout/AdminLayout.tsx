@@ -1,23 +1,24 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { adminApi } from '../../services/adminApi';
 import { AdminUser, RestaurantSettings } from '../../types';
 import { LoadingState } from '../common/LoadingState';
 
-export const AdminLayout: React.FC = () => {
+export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('hestiia_admin_token');
     if (!token) {
-      navigate('/admin/login', { replace: true });
+      router.replace('/admin/login');
       return;
     }
 
@@ -47,12 +48,12 @@ export const AdminLayout: React.FC = () => {
       .catch(() => {
         localStorage.removeItem('hestiia_admin_token');
         localStorage.removeItem('hestiia_admin_user');
-        navigate('/admin/login', { replace: true });
+        router.replace('/admin/login');
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [navigate]);
+  }, [router]);
 
   const handleLogout = async () => {
     try {
@@ -62,7 +63,7 @@ export const AdminLayout: React.FC = () => {
     }
     localStorage.removeItem('hestiia_admin_token');
     localStorage.removeItem('hestiia_admin_user');
-    navigate('/admin/login', { replace: true });
+    router.replace('/admin/login');
   };
 
   if (isLoading) {
@@ -94,7 +95,7 @@ export const AdminLayout: React.FC = () => {
 
         {/* Page Viewport */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-fadeIn">
-          <Outlet context={{ user, settings, reloadSettings: () => adminApi.getSettings().then(r => setSettings(r.settings)) }} />
+          {children}
         </main>
       </div>
     </div>
