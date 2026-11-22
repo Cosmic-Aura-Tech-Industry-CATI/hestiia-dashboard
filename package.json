@@ -4,7 +4,10 @@
   "description": "DIMISI Technologies - Hestiia Restaurant Management Admin Dashboard (Next.js)",
   "type": "module",
   "scripts": {
-    "dev": "next dev --webpack -p 3000",
+    "dev": "next dev --webpack",
+    "dev:free": "powershell -Command \"Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue\" && next dev --webpack -p 3000",
+    "free-port": "powershell -Command \"Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue\"",
+    "dev:force3000": "next dev --webpack -p 3000",
     "build": "next build --webpack",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit"

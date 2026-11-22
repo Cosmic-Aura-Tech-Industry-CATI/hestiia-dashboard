@@ -20,7 +20,30 @@ export { ApiError, ApiClient };
 export const adminApi = {
   // Auth
   login: async (credentials: { username: string; password: string }) => {
-    return ApiClient.post<{ success: boolean; token: string; user: AdminUser; message: string }>('/admin/auth/login', credentials);
+    return ApiClient.post<{
+      success: boolean;
+      requireOtp?: boolean;
+      otpSessionId?: string;
+      maskedEmail?: string;
+      expiresInSeconds?: number;
+      resendCooldownSeconds?: number;
+      devOtp?: string;
+      token?: string;
+      user?: AdminUser;
+      message: string;
+    }>('/admin/auth/login', credentials);
+  },
+  verifyOtp: async (data: { otpSessionId: string; otp: string }) => {
+    return ApiClient.post<{ success: boolean; token: string; user: AdminUser; message: string }>('/admin/auth/verify-otp', data);
+  },
+  resendOtp: async (data: { otpSessionId: string }) => {
+    return ApiClient.post<{ success: boolean; maskedEmail: string; resendCooldownSeconds: number; devOtp?: string; message: string }>('/admin/auth/resend-otp', data);
+  },
+  forgotPassword: async (data: { emailOrUsername: string }) => {
+    return ApiClient.post<{ success: boolean; resetSessionId?: string; maskedEmail?: string; expiresInSeconds?: number; devOtp?: string; message: string }>('/admin/auth/forgot-password', data);
+  },
+  resetPassword: async (data: { resetSessionId: string; otp: string; newPassword: string }) => {
+    return ApiClient.post<{ success: boolean; message: string }>('/admin/auth/reset-password', data);
   },
   getMe: async () => {
     return ApiClient.get<{ success: boolean; user: AdminUser }>('/admin/auth/me');
