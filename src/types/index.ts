@@ -1,12 +1,19 @@
+export type UserRole = 'ADMIN' | 'STAFF' | 'SUPERADMIN' | 'MANAGER' | 'superadmin' | 'manager' | 'staff' | 'admin';
+export type UserStatus = 'ACTIVE' | 'INACTIVE';
+
 export interface AdminUser {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   username: string;
-  role: 'superadmin' | 'manager' | 'staff';
-  active: boolean;
+  role: UserRole;
+  status?: UserStatus;
+  active?: boolean;
+  tokenVersion?: number;
   lastLogin?: string;
-  createdAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FoodCategory {

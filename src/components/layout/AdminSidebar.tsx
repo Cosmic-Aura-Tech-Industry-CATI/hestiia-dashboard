@@ -138,8 +138,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
               </div>
               <div className="truncate">
                 <div className="text-xs font-semibold text-warmwhite truncate">{user?.name || 'Administrator'}</div>
-                <div className="text-[10px] text-gold uppercase tracking-wider capitalize font-medium">
-                  {user?.role || 'Staff'}
+                <div className="text-[10px] text-gold uppercase tracking-wider font-semibold">
+                  {user?.role?.toUpperCase() || 'STAFF'}
                 </div>
               </div>
             </div>

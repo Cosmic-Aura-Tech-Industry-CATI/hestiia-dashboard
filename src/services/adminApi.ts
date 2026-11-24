@@ -19,30 +19,65 @@ export { ApiError, ApiClient };
 
 export const adminApi = {
   // Auth
-  login: async (credentials: { username: string; password: string }) => {
+  login: async (credentials: { username?: string; email?: string; identifier?: string; password: string }) => {
     return ApiClient.post<{
       success: boolean;
       requireOtp?: boolean;
       otpSessionId?: string;
+      email?: string;
       maskedEmail?: string;
       expiresInSeconds?: number;
       resendCooldownSeconds?: number;
       devOtp?: string;
       token?: string;
+      accessToken?: string;
+      refreshToken?: string;
       user?: AdminUser;
       message: string;
     }>('/admin/auth/login', credentials);
   },
-  verifyOtp: async (data: { otpSessionId: string; otp: string }) => {
-    return ApiClient.post<{ success: boolean; token: string; user: AdminUser; message: string }>('/admin/auth/verify-otp', data);
+  verifyOtp: async (data: { email?: string; otpSessionId?: string; otp: string }) => {
+    return ApiClient.post<{
+      success: boolean;
+      token?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      user: AdminUser;
+      message: string;
+    }>('/admin/auth/verify-otp', data);
   },
-  resendOtp: async (data: { otpSessionId: string }) => {
-    return ApiClient.post<{ success: boolean; maskedEmail: string; resendCooldownSeconds: number; devOtp?: string; message: string }>('/admin/auth/resend-otp', data);
+  resendOtp: async (data: { email?: string; username?: string; otpSessionId?: string }) => {
+    return ApiClient.post<{
+      success: boolean;
+      email?: string;
+      maskedEmail?: string;
+      resendCooldownSeconds?: number;
+      expiresInSeconds?: number;
+      devOtp?: string;
+      message: string;
+    }>('/admin/auth/resend-otp', data);
   },
-  forgotPassword: async (data: { emailOrUsername: string }) => {
-    return ApiClient.post<{ success: boolean; resetSessionId?: string; maskedEmail?: string; expiresInSeconds?: number; devOtp?: string; message: string }>('/admin/auth/forgot-password', data);
+  refreshToken: async (data?: { refreshToken?: string }) => {
+    return ApiClient.post<{
+      success: boolean;
+      token: string;
+      accessToken: string;
+      refreshToken: string;
+      user: AdminUser;
+    }>('/admin/auth/refresh', data);
   },
-  resetPassword: async (data: { resetSessionId: string; otp: string; newPassword: string }) => {
+  forgotPassword: async (data: { email?: string; username?: string; emailOrUsername?: string }) => {
+    return ApiClient.post<{
+      success: boolean;
+      email?: string;
+      resetSessionId?: string;
+      maskedEmail?: string;
+      expiresInSeconds?: number;
+      devOtp?: string;
+      message: string;
+    }>('/admin/auth/forgot-password', data);
+  },
+  resetPassword: async (data: { email: string; otp: string; newPassword: string; resetSessionId?: string }) => {
     return ApiClient.post<{ success: boolean; message: string }>('/admin/auth/reset-password', data);
   },
   getMe: async () => {
@@ -54,11 +89,51 @@ export const adminApi = {
   changePassword: async (passwords: { currentPassword: string; newPassword: string }) => {
     return ApiClient.post<{ success: boolean; message: string }>('/admin/auth/change-password', passwords);
   },
-  getUsers: async () => {
-    return ApiClient.get<{ success: boolean; users: AdminUser[] }>('/admin/auth/users');
+  getUsers: async (query?: { page?: number; limit?: number; role?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    if (query?.page) params.append('page', String(query.page));
+    if (query?.limit) params.append('limit', String(query.limit));
+    if (query?.role) params.append('role', query.role);
+    if (query?.status) params.append('status', query.status);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return ApiClient.get<{
+      success: boolean;
+      users: AdminUser[];
+      total?: number;
+      page?: number;
+      limit?: number;
+      totalPages?: number;
+    }>(`/admin/auth/users${qs}`);
   },
-  createUser: async (userData: any) => {
-    return ApiClient.post<{ success: boolean; user: AdminUser; message: string }>('/admin/auth/users', userData);
+  getUserById: async (id: string) => {
+    return ApiClient.get<{ success: boolean; user: AdminUser }>(`/admin/auth/users/${id}`);
+  },
+  createUser: async (userData: {
+    name: string;
+    email: string;
+    username?: string;
+    password: string;
+    role: 'ADMIN' | 'STAFF' | string;
+    status?: 'ACTIVE' | 'INACTIVE';
+  }) => {
+    const roleToSend = userData.role?.toUpperCase() === 'STAFF' ? 'STAFF' : 'ADMIN';
+    return ApiClient.post<{ success: boolean; user: AdminUser; message: string }>('/admin/auth/users', {
+      ...userData,
+      role: roleToSend,
+    });
+  },
+  updateUser: async (id: string, userData: { name?: string; email?: string }) => {
+    return ApiClient.patch<{ success: boolean; user: AdminUser; message: string }>(`/admin/auth/users/${id}`, userData);
+  },
+  updateUserRole: async (id: string, role: 'ADMIN' | 'STAFF' | string) => {
+    const roleToSend = role?.toUpperCase() === 'STAFF' ? 'STAFF' : 'ADMIN';
+    return ApiClient.patch<{ success: boolean; user: AdminUser; message: string }>(`/admin/auth/users/${id}/role`, { role: roleToSend });
+  },
+  updateUserStatus: async (id: string, status: 'ACTIVE' | 'INACTIVE') => {
+    return ApiClient.patch<{ success: boolean; user: AdminUser; message: string }>(`/admin/auth/users/${id}/status`, { status });
+  },
+  deleteUser: async (id: string) => {
+    return ApiClient.delete<{ success: boolean; message: string }>(`/admin/auth/users/${id}`);
   },
 
   // Dashboard Overview

@@ -69,7 +69,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ user, settings, onTogg
           </div>
           <div className="hidden xl:block text-left text-xs">
             <span className="block font-medium text-warmwhite leading-tight">{user?.name}</span>
-            <span className="text-[10px] text-gold uppercase tracking-wider font-semibold">{user?.role}</span>
+            <span className="text-[10px] text-gold uppercase tracking-wider font-semibold">{user?.role?.toUpperCase()}</span>
           </div>
         </div>
       </div>

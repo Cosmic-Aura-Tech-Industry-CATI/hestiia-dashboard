@@ -15,6 +15,18 @@ export class ApiError extends Error {
   }
 }
 
+let isRefreshing = false;
+let refreshSubscribers: ((newToken: string) => void)[] = [];
+
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach((cb) => cb(newToken));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(cb: (newToken: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
 export class ApiClient {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -41,14 +53,87 @@ export class ApiClient {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        // If 401 Unauthorized on admin endpoint, clear auth
+        // Handle 401 Unauthorized for Admin endpoints
         if (res.status === 401 && endpoint.includes('/admin') && typeof window !== 'undefined') {
-          localStorage.removeItem('hestiia_admin_token');
-          localStorage.removeItem('hestiia_admin_user');
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/admin/login?expired=true';
+          const isAuthRoute = endpoint.includes('/auth/login') || endpoint.includes('/auth/refresh');
+          const refreshToken = localStorage.getItem('hestiia_admin_refresh_token');
+
+          if (!isAuthRoute && refreshToken) {
+            // Attempt silent token refresh
+            if (!isRefreshing) {
+              isRefreshing = true;
+              try {
+                const refreshRes = await fetch(`${this.baseURL}/admin/auth/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refreshToken }),
+                });
+
+                const refreshData = await refreshRes.json().catch(() => ({}));
+                if (refreshRes.ok && (refreshData.accessToken || refreshData.token)) {
+                  const newAccessToken = refreshData.accessToken || refreshData.token;
+                  localStorage.setItem('hestiia_admin_token', newAccessToken);
+                  if (refreshData.refreshToken) {
+                    localStorage.setItem('hestiia_admin_refresh_token', refreshData.refreshToken);
+                  }
+                  if (refreshData.user) {
+                    localStorage.setItem('hestiia_admin_user', JSON.stringify(refreshData.user));
+                  }
+                  isRefreshing = false;
+                  onTokenRefreshed(newAccessToken);
+
+                  // Retry the original failed request with the new token
+                  headers.set('Authorization', `Bearer ${newAccessToken}`);
+                  const retryRes = await fetch(url, { ...options, headers });
+                  const retryData = await retryRes.json().catch(() => ({}));
+                  if (!retryRes.ok) {
+                    throw new ApiError(retryData.message || `Request failed with status ${retryRes.status}`, retryRes.status, retryData);
+                  }
+                  return retryData as T;
+                } else {
+                  throw new Error('Refresh token invalid');
+                }
+              } catch (refreshErr) {
+                isRefreshing = false;
+                refreshSubscribers = [];
+                localStorage.removeItem('hestiia_admin_token');
+                localStorage.removeItem('hestiia_admin_refresh_token');
+                localStorage.removeItem('hestiia_admin_user');
+                if (!window.location.pathname.includes('/login')) {
+                  window.location.href = '/admin/login?expired=true';
+                }
+                throw new ApiError('Session expired. Please sign in again.', 401);
+              }
+            } else {
+              // Queue request while another refresh is in progress
+              return new Promise<T>((resolve, reject) => {
+                addRefreshSubscriber(async (newToken: string) => {
+                  try {
+                    headers.set('Authorization', `Bearer ${newToken}`);
+                    const retryRes = await fetch(url, { ...options, headers });
+                    const retryData = await retryRes.json().catch(() => ({}));
+                    if (!retryRes.ok) {
+                      reject(new ApiError(retryData.message || `Request failed with status ${retryRes.status}`, retryRes.status, retryData));
+                    } else {
+                      resolve(retryData as T);
+                    }
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              });
+            }
+          } else {
+            // No refresh token available or auth route failed
+            localStorage.removeItem('hestiia_admin_token');
+            localStorage.removeItem('hestiia_admin_refresh_token');
+            localStorage.removeItem('hestiia_admin_user');
+            if (!window.location.pathname.includes('/login')) {
+              window.location.href = '/admin/login?expired=true';
+            }
           }
         }
+
         throw new ApiError(data.message || `Request failed with status ${res.status}`, res.status, data);
       }
 

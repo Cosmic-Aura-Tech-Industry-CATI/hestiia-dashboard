@@ -26,14 +26,15 @@ export const AdminLogin: React.FC = () => {
 
   // Core Login State
   const [step, setStep] = useState<LoginStep>('CREDENTIALS');
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('Admin@Hestiia2026');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // 2FA OTP State
+  const [userEmail, setUserEmail] = useState<string>('');
   const [otpSessionId, setOtpSessionId] = useState<string>('');
   const [maskedEmail, setMaskedEmail] = useState<string>('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -85,18 +86,23 @@ export const AdminLogin: React.FC = () => {
     try {
       const res = await adminApi.login({ username, password });
 
-      if (res.requireOtp && res.otpSessionId) {
-        setOtpSessionId(res.otpSessionId);
-        setMaskedEmail(res.maskedEmail || 'your registered email');
-        setResendCooldown(res.resendCooldownSeconds || 60);
+      if (res.requireOtp) {
+        const emailToUse = res.email || username;
+        setUserEmail(emailToUse);
+        setOtpSessionId(res.otpSessionId || '');
+        setMaskedEmail(res.maskedEmail || emailToUse);
+        setResendCooldown(res.resendCooldownSeconds || res.expiresInSeconds || 60);
         setOtpDigits(['', '', '', '', '', '']);
         if (res.devOtp) {
           setDevOtpNotification(res.devOtp);
         }
         setStep('OTP_VERIFY');
-      } else if (res.token && res.user) {
-        // Direct login fallback if 2FA is bypassed
-        localStorage.setItem('hestiia_admin_token', res.token);
+      } else if ((res.token || res.accessToken) && res.user) {
+        const token = res.token || res.accessToken!;
+        localStorage.setItem('hestiia_admin_token', token);
+        if (res.refreshToken) {
+          localStorage.setItem('hestiia_admin_refresh_token', res.refreshToken);
+        }
         localStorage.setItem('hestiia_admin_user', JSON.stringify(res.user));
         router.replace('/admin/dashboard');
       } else {
@@ -185,12 +191,17 @@ export const AdminLogin: React.FC = () => {
 
     try {
       const res = await adminApi.verifyOtp({
+        email: userEmail,
         otpSessionId,
         otp: code,
       });
 
-      if (res.success && res.token) {
-        localStorage.setItem('hestiia_admin_token', res.token);
+      if (res.success && (res.token || res.accessToken)) {
+        const token = res.token || res.accessToken!;
+        localStorage.setItem('hestiia_admin_token', token);
+        if (res.refreshToken) {
+          localStorage.setItem('hestiia_admin_refresh_token', res.refreshToken);
+        }
         localStorage.setItem('hestiia_admin_user', JSON.stringify(res.user));
         router.replace('/admin/dashboard');
       } else {
@@ -209,8 +220,12 @@ export const AdminLogin: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const res = await adminApi.resendOtp({ otpSessionId });
-      setResendCooldown(res.resendCooldownSeconds || 60);
+      const res = await adminApi.resendOtp({
+        email: userEmail,
+        username,
+        otpSessionId,
+      });
+      setResendCooldown(res.resendCooldownSeconds || res.expiresInSeconds || 60);
       setSuccessMessage(res.message || 'A fresh verification code has been dispatched.');
       if (res.devOtp) {
         setDevOtpNotification(res.devOtp);
@@ -241,9 +256,11 @@ export const AdminLogin: React.FC = () => {
 
     try {
       const res = await adminApi.forgotPassword({ emailOrUsername: forgotInput.trim() });
-      if (res.resetSessionId) {
-        setResetSessionId(res.resetSessionId);
-        setMaskedEmail(res.maskedEmail || forgotInput);
+      if (res.success) {
+        const emailToUse = res.email || forgotInput.trim();
+        setUserEmail(emailToUse);
+        setResetSessionId(res.resetSessionId || '');
+        setMaskedEmail(res.maskedEmail || emailToUse);
         setResendCooldown(60);
         setResetOtpDigits(['', '', '', '', '', '']);
         setNewPassword('');
@@ -253,7 +270,7 @@ export const AdminLogin: React.FC = () => {
         }
         setStep('FORGOT_RESET');
       } else {
-        setSuccessMessage(res.message);
+        setErrorMessage(res.message || 'Failed to request password reset.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to request password reset.');
@@ -284,9 +301,10 @@ export const AdminLogin: React.FC = () => {
 
     try {
       const res = await adminApi.resetPassword({
-        resetSessionId,
+        email: userEmail || forgotInput.trim(),
         otp,
         newPassword,
+        resetSessionId,
       });
 
       if (res.success) {
@@ -299,12 +317,6 @@ export const AdminLogin: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickFill = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    setErrorMessage(null);
   };
 
   return (
@@ -411,9 +423,10 @@ export const AdminLogin: React.FC = () => {
                   <input
                     type="text"
                     required
+                    autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="admin or manager"
+                    placeholder="Enter your username or email address"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-charcoal/70 border border-charcoal-border text-warmwhite text-xs placeholder-beige-muted focus:border-gold focus:ring-1 focus:ring-gold/40 focus:outline-none transition-all backdrop-blur-md"
                   />
                 </div>
@@ -444,9 +457,10 @@ export const AdminLogin: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
+                    placeholder="Enter your security password"
                     className="w-full pl-10 pr-11 py-2.5 rounded-xl bg-charcoal/70 border border-charcoal-border text-warmwhite text-xs placeholder-beige-muted focus:border-gold focus:ring-1 focus:ring-gold/40 focus:outline-none transition-all backdrop-blur-md"
                   />
                   {/* View Password Toggle Icon */}
@@ -463,8 +477,8 @@ export const AdminLogin: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-gold via-gold-light to-gold hover:from-gold-dark hover:to-gold text-charcoal-950 font-bold text-xs uppercase tracking-wider shadow-[0_4px_20px_rgba(212,175,55,0.3)] hover:shadow-[0_6px_25px_rgba(212,175,55,0.45)] transition-all duration-200 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+                disabled={isLoading || !username.trim() || !password}
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-gold via-gold-light to-gold hover:from-gold-dark hover:to-gold text-charcoal-950 font-bold text-xs uppercase tracking-wider shadow-[0_4px_20px_rgba(212,175,55,0.3)] hover:shadow-[0_6px_25px_rgba(212,175,55,0.45)] transition-all duration-200 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-charcoal-950 border-t-transparent rounded-full animate-spin" />
@@ -476,31 +490,6 @@ export const AdminLogin: React.FC = () => {
                 )}
               </button>
             </form>
-
-            {/* Quick Demo Credentials Assistant */}
-            <div className="mt-6 pt-5 border-t border-charcoal-border/80">
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-gold mb-2.5 text-center">
-                Quick Sign In Roles
-              </span>
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin', 'Admin@Hestiia2026')}
-                  className="p-2.5 rounded-xl bg-charcoal/60 border border-charcoal-border hover:border-gold/50 text-left transition-all backdrop-blur-sm group"
-                >
-                  <div className="font-semibold text-warmwhite group-hover:text-gold transition-colors">Superadmin</div>
-                  <div className="text-[10px] text-beige-muted">admin / Admin@Hestiia2026</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('manager', 'Manager@Hestiia2026')}
-                  className="p-2.5 rounded-xl bg-charcoal/60 border border-charcoal-border hover:border-gold/50 text-left transition-all backdrop-blur-sm group"
-                >
-                  <div className="font-semibold text-warmwhite group-hover:text-gold transition-colors">Floor Manager</div>
-                  <div className="text-[10px] text-beige-muted">manager / Manager@Hestiia2026</div>
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
