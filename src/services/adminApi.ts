@@ -36,6 +36,23 @@ export const adminApi = {
       message: string;
     }>('/admin/auth/login', credentials);
   },
+  staffLogin: async (credentials: { username?: string; email?: string; identifier?: string; password: string }) => {
+    return ApiClient.post<{
+      success: boolean;
+      requireOtp?: boolean;
+      otpSessionId?: string;
+      email?: string;
+      maskedEmail?: string;
+      expiresInSeconds?: number;
+      resendCooldownSeconds?: number;
+      devOtp?: string;
+      token?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      user?: AdminUser;
+      message: string;
+    }>('/staff/login', credentials);
+  },
   verifyOtp: async (data: { email?: string; otpSessionId?: string; otp: string }) => {
     return ApiClient.post<{
       success: boolean;

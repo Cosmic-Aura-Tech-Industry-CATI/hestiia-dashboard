@@ -380,9 +380,23 @@ export const AdminLogin: React.FC = () => {
 
         {/* Global Error Banner */}
         {errorMessage && (
-          <div className="mb-4 p-3.5 rounded-2xl bg-rose-950/50 border border-rose-500/40 text-rose-200 text-xs flex items-start space-x-2.5 backdrop-blur-xl animate-shake shadow-xl">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
-            <span className="leading-relaxed">{errorMessage}</span>
+          <div className="mb-4 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs flex flex-col space-y-2.5 backdrop-blur-xl animate-shake shadow-xl">
+            <div className="flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+            {errorMessage.toLowerCase().includes('staff') && (
+              <div className="pt-2 border-t border-rose-500/20 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => router.push('/staff/login')}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gold text-charcoal-950 font-bold text-[11px] hover:bg-gold-light transition-all shadow-md cursor-pointer"
+                >
+                  <span>Go to Staff Operations Login</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -490,6 +504,20 @@ export const AdminLogin: React.FC = () => {
                 )}
               </button>
             </form>
+
+            {/* Switch to Staff Portal Link */}
+            <div className="mt-5 pt-4 border-t border-charcoal-border/50 text-center">
+              <p className="text-[11px] text-beige-muted">
+                Staff member or floor operations?{' '}
+                <button
+                  type="button"
+                  onClick={() => router.push('/staff/login')}
+                  className="text-gold hover:text-gold-light hover:underline font-semibold transition-colors"
+                >
+                  Sign in via Staff Operations Portal &rarr;
+                </button>
+              </p>
+            </div>
           </div>
         )}
 
