@@ -25,6 +25,8 @@ import {
   ShieldAlert,
   TicketPercent,
   Bell,
+  Mail,
+  Truck,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { isStaffRole } from '../../services/apiClient';
@@ -39,12 +41,14 @@ interface AdminSidebarProps {
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/admin/dashboard', staffAllowed: true },
   { label: 'Orders', icon: ShoppingBag, path: '/admin/orders', staffAllowed: true },
+  { label: 'Delivery Dispatch', icon: Truck, path: '/admin/delivery', staffAllowed: true },
   { label: 'Food Menu', icon: UtensilsCrossed, path: '/admin/menu', staffAllowed: false },
   { label: 'Categories', icon: Tags, path: '/admin/categories', staffAllowed: false },
   { label: 'Customers', icon: Users, path: '/admin/customers', staffAllowed: false },
   { label: 'Payments & Billing', icon: CreditCard, path: '/admin/payments', staffAllowed: false },
   { label: 'Table Bookings', icon: CalendarCheck, path: '/admin/bookings', staffAllowed: true },
   { label: 'Party Inquiries', icon: PartyPopper, path: '/admin/party-inquiries', staffAllowed: false },
+  { label: 'Contact Messages', icon: Mail, path: '/admin/contact', staffAllowed: true },
   { label: 'Website Content', icon: Globe, path: '/admin/website-content', staffAllowed: false },
   { label: 'Promotions', icon: Flame, path: '/admin/promotions', staffAllowed: false },
   { label: 'Coupons & Offers', icon: TicketPercent, path: '/admin/offers', staffAllowed: true },

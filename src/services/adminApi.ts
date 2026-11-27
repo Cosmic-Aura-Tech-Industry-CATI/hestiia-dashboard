@@ -40,6 +40,13 @@ import {
   CreateNotificationDTO,
   NotificationQuery,
   NotificationRecipientType,
+  ContactStatus,
+  ContactInquiry,
+  ContactStats,
+  CustomerStatsSummary,
+  DeliveryTrackingStatus,
+  DeliveryZone,
+  DeliveryAssignment,
 } from '../types';
 import { ApiClient, ApiError, getAuthToken } from './apiClient';
 
@@ -333,18 +340,72 @@ export const adminApi = {
   },
 
   // Customers
-  getCustomers: async (params?: { search?: string; page?: number; limit?: number; sortBy?: string }) => {
-    const query = new URLSearchParams();
-    if (params?.search) query.set('search', params.search);
-    if (params?.page) query.set('page', String(params.page));
-    if (params?.limit) query.set('limit', String(params.limit));
-    if (params?.sortBy) query.set('sortBy', params.sortBy);
-    return ApiClient.get<{ success: boolean; customers: Customer[]; total: number; page: number; totalPages: number }>(
-      `/admin/customers?${query.toString()}`
-    );
+  getCustomerStats: async () => {
+    return ApiClient.get<{ success: boolean; stats: CustomerStatsSummary }>('/admin/customers/stats/summary');
+  },
+  getCustomers: async (params?: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    const qs = buildQueryString(params);
+    const res = await ApiClient.get<{
+      success: boolean;
+      customers: Customer[];
+      total: number;
+      page: number;
+      totalPages: number;
+    }>(`/admin/customers${qs}`);
+    if (res.success && Array.isArray(res.customers)) {
+      res.customers = res.customers.map((c) => ({ ...c, id: c.id || c._id || '' }));
+    }
+    return res;
   },
   getCustomerDetails: async (id: string) => {
-    return ApiClient.get<{ success: boolean; customer: Customer; orders: Order[] }>(`/admin/customers/${id}`);
+    const res = await ApiClient.get<{ success: boolean; customer: Customer; orders: Order[] }>(
+      `/admin/customers/${id}`
+    );
+    if (res.customer) {
+      res.customer = { ...res.customer, id: res.customer.id || res.customer._id || id };
+    }
+    if (Array.isArray(res.orders)) {
+      res.orders = res.orders.map((o) => ({ ...o, id: o.id || (o as any)._id || o.orderNumber }));
+    }
+    return res;
+  },
+  createCustomer: async (payload: {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    notes?: string;
+  }) => {
+    const res = await ApiClient.post<{ success: boolean; customer: Customer; message: string }>(
+      '/admin/customers',
+      payload
+    );
+    if (res.customer) {
+      res.customer = { ...res.customer, id: res.customer.id || res.customer._id || '' };
+    }
+    return res;
+  },
+  updateCustomer: async (
+    id: string,
+    payload: { name?: string; phone?: string; email?: string; address?: string; notes?: string }
+  ) => {
+    const res = await ApiClient.patch<{ success: boolean; customer: Customer; message: string }>(
+      `/admin/customers/${id}`,
+      payload
+    );
+    if (res.customer) {
+      res.customer = { ...res.customer, id: res.customer.id || res.customer._id || id };
+    }
+    return res;
+  },
+  deleteCustomer: async (id: string) => {
+    return ApiClient.delete<{ success: boolean; id: string; message: string }>(`/admin/customers/${id}`);
   },
 
   // Payments & Invoices
@@ -910,5 +971,138 @@ export const adminApi = {
       status: string;
       timestamp: string;
     }>('/admin/notifications/status');
+  },
+
+  // Contact Inquiries
+  getContactStats: async () => {
+    return ApiClient.get<{ success: boolean; stats: ContactStats }>('/admin/contact/stats');
+  },
+  getContactInquiries: async (params?: {
+    status?: string;
+    subject?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const qs = buildQueryString(params);
+    const res = await ApiClient.get<{
+      success: boolean;
+      inquiries: ContactInquiry[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+      countsByStatus: Record<string, number>;
+    }>(`/admin/contact${qs}`);
+    if (res.success && Array.isArray(res.inquiries)) {
+      res.inquiries = res.inquiries.map((c) => ({ ...c, id: c.id || c._id || '' }));
+    }
+    return res;
+  },
+  getContactInquiryById: async (id: string) => {
+    const res = await ApiClient.get<{ success: boolean; inquiry: ContactInquiry }>(`/admin/contact/${id}`);
+    if (res.inquiry) {
+      res.inquiry = { ...res.inquiry, id: res.inquiry.id || res.inquiry._id || id };
+    }
+    return res;
+  },
+  updateContactInquiry: async (
+    id: string,
+    payload: { status?: ContactStatus; responseNotes?: string }
+  ) => {
+    const res = await ApiClient.patch<{
+      success: boolean;
+      inquiry: ContactInquiry;
+      message: string;
+    }>(`/admin/contact/${id}`, payload);
+    if (res.inquiry) {
+      res.inquiry = { ...res.inquiry, id: res.inquiry.id || res.inquiry._id || id };
+    }
+    return res;
+  },
+  deleteContactInquiry: async (id: string) => {
+    return ApiClient.delete<{ success: boolean; message: string }>(`/admin/contact/${id}`);
+  },
+
+  // Delivery Dispatch & Zones
+  getDeliveries: async (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    const qs = buildQueryString(params);
+    const res = await ApiClient.get<{
+      success: boolean;
+      deliveries: DeliveryAssignment[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+      countsByStatus: Record<string, number>;
+    }>(`/admin/delivery${qs}`);
+    if (res.success && Array.isArray(res.deliveries)) {
+      res.deliveries = res.deliveries.map((d) => ({ ...d, id: d.id || d._id || d.orderNumber }));
+    }
+    return res;
+  },
+  trackDeliveryByOrder: async (orderNumber: string) => {
+    const res = await ApiClient.get<{ success: boolean; tracking: DeliveryAssignment }>(
+      `/admin/delivery/track/${encodeURIComponent(orderNumber)}`
+    );
+    if (res.tracking) {
+      res.tracking = { ...res.tracking, id: res.tracking.id || res.tracking._id || res.tracking.orderNumber };
+    }
+    return res;
+  },
+  assignDeliveryRider: async (
+    orderNumber: string,
+    payload: {
+      riderName: string;
+      riderPhone: string;
+      vehicleNumber?: string;
+      estimatedMinutes?: number;
+      deliveryNotes?: string;
+    }
+  ) => {
+    const res = await ApiClient.post<{
+      success: boolean;
+      assignment: DeliveryAssignment;
+      message: string;
+    }>(`/admin/delivery/${encodeURIComponent(orderNumber)}/assign`, payload);
+    if (res.assignment) {
+      res.assignment = {
+        ...res.assignment,
+        id: res.assignment.id || res.assignment._id || res.assignment.orderNumber,
+      };
+    }
+    return res;
+  },
+  updateDeliveryStatus: async (
+    orderNumber: string,
+    payload: {
+      status: DeliveryTrackingStatus;
+      location?: { lat: number; lng: number };
+      notes?: string;
+    }
+  ) => {
+    const res = await ApiClient.patch<{
+      success: boolean;
+      tracking: DeliveryAssignment;
+      message: string;
+    }>(`/admin/delivery/${encodeURIComponent(orderNumber)}/status`, payload);
+    if (res.tracking) {
+      res.tracking = { ...res.tracking, id: res.tracking.id || res.tracking._id || res.tracking.orderNumber };
+    }
+    return res;
+  },
+  verifyDeliveryOtp: async (orderNumber: string, otp: string) => {
+    const res = await ApiClient.post<{
+      success: boolean;
+      tracking: DeliveryAssignment;
+      message: string;
+    }>(`/admin/delivery/${encodeURIComponent(orderNumber)}/verify-otp`, { otp });
+    if (res.tracking) {
+      res.tracking = { ...res.tracking, id: res.tracking.id || res.tracking._id || res.tracking.orderNumber };
+    }
+    return res;
+  },
+  getDeliveryZones: async () => {
+    return ApiClient.get<{ success: boolean; zones: DeliveryZone[] }>('/admin/delivery/zones');
+  },
+  updateDeliveryZones: async (zones: DeliveryZone[]) => {
+    return ApiClient.put<{ success: boolean; zones: DeliveryZone[]; message: string }>(
+      '/admin/delivery/zones',
+      { zones }
+    );
   },
 };

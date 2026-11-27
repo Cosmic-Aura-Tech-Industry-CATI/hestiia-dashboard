@@ -102,13 +102,26 @@ export interface Order {
 
 export interface Customer {
   id: string;
+  _id?: string;
   name: string;
   phone: string;
   email?: string;
+  address?: string;
+  notes?: string;
   totalOrders: number;
   totalSpent: number;
-  lastOrderDate: string;
-  createdAt: string;
+  lastOrderDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerStatsSummary {
+  totalCustomers: number;
+  repeatCustomers: number;
+  newCustomers: number;
+  totalRevenueFromCustomers: number;
+  averageSpendPerCustomer: number;
+  totalOrdersPlaced: number;
 }
 
 export interface Payment {
@@ -471,6 +484,91 @@ export interface NotificationQuery {
   channel?: NotificationChannel;
   limit?: number;
   skip?: number;
+}
+
+export type ContactStatus = 'new' | 'in_progress' | 'responded' | 'archived';
+
+export type ContactSubject =
+  | 'general'
+  | 'feedback'
+  | 'complaint'
+  | 'catering'
+  | 'events'
+  | 'partnership'
+  | 'careers'
+  | 'other';
+
+export interface ContactInquiry {
+  id: string;
+  _id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject: string;
+  message: string;
+  status: ContactStatus;
+  responseNotes?: string;
+  respondedAt?: string;
+  respondedBy?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ContactStats {
+  total: number;
+  new: number;
+  in_progress: number;
+  responded: number;
+  archived: number;
+  recentWeekCount: number;
+}
+
+export type DeliveryTrackingStatus =
+  | 'unassigned'
+  | 'assigned'
+  | 'picked_up'
+  | 'on_the_way'
+  | 'delivered'
+  | 'failed'
+  | 'cancelled';
+
+export interface DeliveryLocation {
+  lat: number;
+  lng: number;
+  updatedAt?: string;
+}
+
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  pincodes: string[];
+  minOrderValue: number;
+  deliveryFee: number;
+  estimatedMinutes: number;
+  isActive: boolean;
+}
+
+export interface DeliveryAssignment {
+  id: string;
+  _id?: string;
+  orderNumber: string;
+  riderName: string;
+  riderPhone: string;
+  vehicleNumber?: string;
+  trackingStatus: DeliveryTrackingStatus;
+  currentLocation?: DeliveryLocation;
+  destinationAddress: string;
+  customerName: string;
+  customerPhone: string;
+  estimatedArrival?: string;
+  deliveredAt?: string;
+  deliveryNotes?: string;
+  otp?: string;
+  assignedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 

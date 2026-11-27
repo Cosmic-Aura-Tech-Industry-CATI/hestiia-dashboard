@@ -22,9 +22,10 @@ import {
   X,
   AlertTriangle,
   RotateCcw,
+  Truck,
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
-import { Order, Payment, Invoice, RestaurantSettings } from '../types';
+import { Order, Payment, Invoice, RestaurantSettings, DeliveryAssignment } from '../types';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingState } from '../components/common/LoadingState';
@@ -37,6 +38,7 @@ export const OrderDetails: React.FC = () => {
   const [payment, setPayment] = useState<Payment | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
+  const [deliveryTracking, setDeliveryTracking] = useState<DeliveryAssignment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusNote, setStatusNote] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -63,6 +65,14 @@ export const OrderDetails: React.FC = () => {
         setOrder(res.order);
         setPayment(res.payment || null);
         setInvoice(res.invoice || null);
+        if (res.order.fulfillmentType === 'delivery' && res.order.orderNumber) {
+          adminApi
+            .trackDeliveryByOrder(res.order.orderNumber)
+            .then((dRes) => {
+              if (dRes.success && dRes.tracking) setDeliveryTracking(dRes.tracking);
+            })
+            .catch(() => {});
+        }
       }
       if (settingsRes && settingsRes.success) {
         setSettings(settingsRes.settings);
@@ -349,6 +359,46 @@ export const OrderDetails: React.FC = () => {
         {/* Right Column: Workflow Action Console */}
         <div className="space-y-6">
           {/* Status Transition Control */}
+          {order.fulfillmentType === 'delivery' && (
+            <div className="p-5 rounded-3xl bg-charcoal-card border border-charcoal-border shadow-md space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-base font-semibold text-warmwhite flex items-center space-x-2">
+                  <Truck className="w-4 h-4 text-gold" />
+                  <span>Delivery Dispatch</span>
+                </h3>
+                <Link
+                  href="/admin/delivery"
+                  className="text-[11px] font-semibold text-gold hover:underline"
+                >
+                  Open Dispatch Console &rarr;
+                </Link>
+              </div>
+              {deliveryTracking ? (
+                <div className="p-3 rounded-2xl bg-charcoal border border-charcoal-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-warmwhite">{deliveryTracking.riderName}</span>
+                    <span className="text-[10px] uppercase font-bold text-gold">
+                      {deliveryTracking.trackingStatus.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-beige">
+                    {deliveryTracking.riderPhone}
+                    {deliveryTracking.vehicleNumber ? ` • ${deliveryTracking.vehicleNumber}` : ''}
+                  </div>
+                  {deliveryTracking.otp && (
+                    <div className="text-[11px] text-emerald-300 font-mono">
+                      Delivery OTP: {deliveryTracking.otp}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-beige-muted">
+                  No rider assigned yet. Use the Dispatch Console to assign a rider for {order.orderNumber}.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="p-6 rounded-3xl bg-charcoal-card border border-gold/40 shadow-xl space-y-4">
             <h3 className="font-serif text-lg font-semibold text-warmwhite flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-gold" />
