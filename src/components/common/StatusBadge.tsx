@@ -87,6 +87,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, type = 'order'
         dotColor = 'bg-sky-400';
         displayLabel = 'Customer Contacted';
         break;
+      case 'quoted':
+        colorClasses = 'bg-indigo-950/40 text-indigo-300 border-indigo-600/40';
+        dotColor = 'bg-indigo-400';
+        displayLabel = 'Quote Sent';
+        break;
       case 'confirmed':
         colorClasses = 'bg-emerald-950/40 text-emerald-300 border-emerald-600/40';
         dotColor = 'bg-emerald-400';

@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
+import { saveAuthSession } from '../services/apiClient';
 
 type LoginStep = 'CREDENTIALS' | 'OTP_VERIFY' | 'FORGOT_REQUEST' | 'FORGOT_RESET' | 'FORGOT_SUCCESS';
 
@@ -99,11 +100,7 @@ export const AdminLogin: React.FC = () => {
         setStep('OTP_VERIFY');
       } else if ((res.token || res.accessToken) && res.user) {
         const token = res.token || res.accessToken!;
-        localStorage.setItem('hestiia_admin_token', token);
-        if (res.refreshToken) {
-          localStorage.setItem('hestiia_admin_refresh_token', res.refreshToken);
-        }
-        localStorage.setItem('hestiia_admin_user', JSON.stringify(res.user));
+        saveAuthSession({ token, refreshToken: res.refreshToken, user: res.user });
         router.replace('/admin/dashboard');
       } else {
         setErrorMessage(res.message || 'Login failed. Please verify your credentials.');
@@ -198,11 +195,7 @@ export const AdminLogin: React.FC = () => {
 
       if (res.success && (res.token || res.accessToken)) {
         const token = res.token || res.accessToken!;
-        localStorage.setItem('hestiia_admin_token', token);
-        if (res.refreshToken) {
-          localStorage.setItem('hestiia_admin_refresh_token', res.refreshToken);
-        }
-        localStorage.setItem('hestiia_admin_user', JSON.stringify(res.user));
+        saveAuthSession({ token, refreshToken: res.refreshToken, user: res.user });
         router.replace('/admin/dashboard');
       } else {
         setErrorMessage(res.message || 'Invalid or expired verification code.');
@@ -351,7 +344,7 @@ export const AdminLogin: React.FC = () => {
             HESTIIYA RESTAURANT
           </h1>
           <p className="text-[11px] text-gold font-semibold uppercase tracking-[0.2em] mt-1 drop-shadow-sm">
-            DIMISI Technologies Administration Portal
+            DIMISI Technologies Admin &amp; Staff Portal
           </p>
         </div>
 
@@ -380,23 +373,9 @@ export const AdminLogin: React.FC = () => {
 
         {/* Global Error Banner */}
         {errorMessage && (
-          <div className="mb-4 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs flex flex-col space-y-2.5 backdrop-blur-xl animate-shake shadow-xl">
-            <div className="flex items-start space-x-2.5">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
-              <span className="leading-relaxed">{errorMessage}</span>
-            </div>
-            {errorMessage.toLowerCase().includes('staff') && (
-              <div className="pt-2 border-t border-rose-500/20 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => router.push('/staff/login')}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gold text-charcoal-950 font-bold text-[11px] hover:bg-gold-light transition-all shadow-md cursor-pointer"
-                >
-                  <span>Go to Staff Operations Login</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+          <div className="mb-4 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs flex items-start space-x-2.5 backdrop-blur-xl animate-shake shadow-xl">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
+            <span className="leading-relaxed">{errorMessage}</span>
           </div>
         )}
 
@@ -504,20 +483,6 @@ export const AdminLogin: React.FC = () => {
                 )}
               </button>
             </form>
-
-            {/* Switch to Staff Portal Link */}
-            <div className="mt-5 pt-4 border-t border-charcoal-border/50 text-center">
-              <p className="text-[11px] text-beige-muted">
-                Staff member or floor operations?{' '}
-                <button
-                  type="button"
-                  onClick={() => router.push('/staff/login')}
-                  className="text-gold hover:text-gold-light hover:underline font-semibold transition-colors"
-                >
-                  Sign in via Staff Operations Portal &rarr;
-                </button>
-              </p>
-            </div>
           </div>
         )}
 

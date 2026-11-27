@@ -1,5 +1,5 @@
 import { AdminLogin } from '@/views/AdminLogin';
 
-export default function AdminLoginPage() {
+export default function UnifiedLoginPage() {
   return <AdminLogin />;
 }

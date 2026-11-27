@@ -27,11 +27,55 @@ function addRefreshSubscriber(cb: (newToken: string) => void) {
   refreshSubscribers.push(cb);
 }
 
+export const AUTH_STORAGE_KEYS = {
+  TOKEN: 'hestiia_admin_token',
+  REFRESH_TOKEN: 'hestiia_admin_refresh_token',
+  USER: 'hestiia_admin_user',
+} as const;
+
+export function saveAuthSession(payload: { token: string; refreshToken?: string; user?: unknown }) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(AUTH_STORAGE_KEYS.TOKEN, payload.token);
+  if (payload.refreshToken) {
+    localStorage.setItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN, payload.refreshToken);
+  }
+  if (payload.user !== undefined) {
+    localStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(payload.user));
+  }
+}
+
+export function clearAuthSession() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(AUTH_STORAGE_KEYS.TOKEN);
+  localStorage.removeItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+  localStorage.removeItem(AUTH_STORAGE_KEYS.USER);
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN);
+}
+
+export function getCachedAuthUser<T = any>(): T | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(AUTH_STORAGE_KEYS.USER);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function isStaffRole(role?: string): boolean {
+  return (role || '').toUpperCase() === 'STAFF';
+}
+
 export class ApiClient {
   private static baseURL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
   public static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('hestiia_admin_token') : null;
+    const token = getAuthToken();
     const headers = new Headers(options.headers || {});
 
     if (token) {
@@ -53,17 +97,23 @@ export class ApiClient {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        // Handle 401 Unauthorized for Admin endpoints
-        if (res.status === 401 && endpoint.includes('/admin') && typeof window !== 'undefined') {
-          const isAuthRoute = endpoint.includes('/auth/login') || endpoint.includes('/auth/refresh');
-          const refreshToken = localStorage.getItem('hestiia_admin_refresh_token');
+        // Handle 401 Unauthorized for protected endpoints
+        const isAuthRoute =
+          endpoint.includes('/auth/login') ||
+          endpoint.includes('/auth/refresh') ||
+          endpoint.includes('/auth/forgot-password') ||
+          endpoint.includes('/auth/reset-password') ||
+          endpoint.includes('/auth/verify-otp');
 
-          if (!isAuthRoute && refreshToken) {
+        if (res.status === 401 && !isAuthRoute && typeof window !== 'undefined') {
+          const refreshToken = localStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+
+          if (refreshToken) {
             // Attempt silent token refresh
             if (!isRefreshing) {
               isRefreshing = true;
               try {
-                const refreshRes = await fetch(`${this.baseURL}/admin/auth/refresh`, {
+                const refreshRes = await fetch(`${this.baseURL}/auth/refresh`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ refreshToken }),
@@ -72,13 +122,11 @@ export class ApiClient {
                 const refreshData = await refreshRes.json().catch(() => ({}));
                 if (refreshRes.ok && (refreshData.accessToken || refreshData.token)) {
                   const newAccessToken = refreshData.accessToken || refreshData.token;
-                  localStorage.setItem('hestiia_admin_token', newAccessToken);
-                  if (refreshData.refreshToken) {
-                    localStorage.setItem('hestiia_admin_refresh_token', refreshData.refreshToken);
-                  }
-                  if (refreshData.user) {
-                    localStorage.setItem('hestiia_admin_user', JSON.stringify(refreshData.user));
-                  }
+                  saveAuthSession({
+                    token: newAccessToken,
+                    refreshToken: refreshData.refreshToken,
+                    user: refreshData.user,
+                  });
                   isRefreshing = false;
                   onTokenRefreshed(newAccessToken);
 
@@ -93,14 +141,12 @@ export class ApiClient {
                 } else {
                   throw new Error('Refresh token invalid');
                 }
-              } catch (refreshErr) {
+              } catch {
                 isRefreshing = false;
                 refreshSubscribers = [];
-                localStorage.removeItem('hestiia_admin_token');
-                localStorage.removeItem('hestiia_admin_refresh_token');
-                localStorage.removeItem('hestiia_admin_user');
+                clearAuthSession();
                 if (!window.location.pathname.includes('/login')) {
-                  window.location.href = '/admin/login?expired=true';
+                  window.location.href = '/login?expired=true';
                 }
                 throw new ApiError('Session expired. Please sign in again.', 401);
               }
@@ -124,12 +170,10 @@ export class ApiClient {
               });
             }
           } else {
-            // No refresh token available or auth route failed
-            localStorage.removeItem('hestiia_admin_token');
-            localStorage.removeItem('hestiia_admin_refresh_token');
-            localStorage.removeItem('hestiia_admin_user');
+            // No refresh token available
+            clearAuthSession();
             if (!window.location.pathname.includes('/login')) {
-              window.location.href = '/admin/login?expired=true';
+              window.location.href = '/login?expired=true';
             }
           }
         }

@@ -19,9 +19,12 @@ import {
   Calendar,
   Send,
   Sparkles,
+  X,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
-import { Order, Payment, Invoice } from '../types';
+import { Order, Payment, Invoice, RestaurantSettings } from '../types';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingState } from '../components/common/LoadingState';
@@ -33,10 +36,17 @@ export const OrderDetails: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusNote, setStatusNote] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // Cancellation Modal States
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReasonPreset, setCancelReasonPreset] = useState('Customer requested cancellation');
+  const [customReason, setCustomReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const { success, error } = useToast();
   const router = useRouter();
@@ -45,11 +55,17 @@ export const OrderDetails: React.FC = () => {
     if (!id) return;
     try {
       setIsLoading(true);
-      const res = await adminApi.getOrderDetails(id);
+      const [res, settingsRes] = await Promise.all([
+        adminApi.getOrderDetails(id),
+        adminApi.getSettings().catch(() => null),
+      ]);
       if (res.success) {
         setOrder(res.order);
         setPayment(res.payment || null);
         setInvoice(res.invoice || null);
+      }
+      if (settingsRes && settingsRes.success) {
+        setSettings(settingsRes.settings);
       }
     } catch (err: any) {
       error(err.message || 'Failed to fetch order details.');
@@ -76,6 +92,24 @@ export const OrderDetails: React.FC = () => {
       error(err.message || 'Failed to update order status.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!order) return;
+    const finalReason = cancelReasonPreset === 'Other' ? (customReason.trim() || 'Staff voided order') : cancelReasonPreset;
+    try {
+      setIsCancelling(true);
+      const res = await adminApi.cancelOrder(order.id, finalReason);
+      if (res.success) {
+        setOrder(res.order);
+        setIsCancelModalOpen(false);
+        success('Order cancelled successfully.');
+      }
+    } catch (err: any) {
+      error(err.message || 'Failed to cancel order.');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -155,6 +189,27 @@ export const OrderDetails: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Cancellation Banner if Order is Cancelled */}
+      {order.orderStatus === 'cancelled' && (
+        <div className="mb-6 p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 flex items-start space-x-3 shadow-lg backdrop-blur-md">
+          <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <h4 className="font-serif font-bold text-sm text-rose-300">Order Voided / Cancelled</h4>
+            <p className="mt-1 text-rose-200/90">
+              <strong>Reason:</strong> {order.cancellationReason || 'No specific reason provided.'}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-4 text-[11px] text-rose-300/70">
+              {order.cancelledAt && (
+                <span>Cancelled On: {new Date(order.cancelledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
+              )}
+              {order.cancelledBy && (
+                <span>Cancelled By: <strong className="text-rose-200">{order.cancelledBy}</strong></span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Ordered Items & Financial Totals */}
@@ -350,10 +405,11 @@ export const OrderDetails: React.FC = () => {
               {order.orderStatus !== 'cancelled' && order.orderStatus !== 'completed' && (
                 <button
                   disabled={isUpdating}
-                  onClick={() => handleUpdateStatus('cancelled')}
-                  className="w-full py-2 px-3 rounded-xl bg-charcoal border border-rose-600/40 text-rose-400 hover:bg-rose-950/40 font-semibold text-xs transition-all"
+                  onClick={() => setIsCancelModalOpen(true)}
+                  className="w-full py-2 px-3 rounded-xl bg-charcoal border border-rose-600/40 text-rose-400 hover:bg-rose-950/40 font-semibold text-xs transition-all flex items-center justify-center space-x-1.5"
                 >
-                  Cancel Order
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Void / Cancel Order</span>
                 </button>
               )}
             </div>
@@ -436,19 +492,119 @@ export const OrderDetails: React.FC = () => {
         </div>
       </div>
 
+      {/* Cancellation Reason Modal */}
+      {isCancelModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-charcoal-900 border border-rose-500/40 text-warmwhite p-6 rounded-3xl max-w-md w-full shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between border-b border-charcoal-border pb-3">
+              <div className="flex items-center space-x-2 text-rose-400">
+                <AlertTriangle className="w-5 h-5" />
+                <h3 className="font-serif font-bold text-base text-warmwhite">Cancel / Void Order</h3>
+              </div>
+              <button
+                onClick={() => setIsCancelModalOpen(false)}
+                className="text-beige-muted hover:text-warmwhite transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-beige leading-relaxed">
+              Are you sure you want to cancel order <strong className="text-gold">{order.orderNumber}</strong>? This action updates the kitchen board and records an audit event.
+            </p>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-beige-muted">Select Cancellation Reason:</label>
+              {[
+                'Customer requested cancellation',
+                'Out of stock / kitchen unavailable',
+                'Payment verification failed / rejected',
+                'Customer unreachable for delivery confirmation',
+                'Other',
+              ].map((reason) => (
+                <label
+                  key={reason}
+                  className={`flex items-center space-x-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                    cancelReasonPreset === reason
+                      ? 'border-gold bg-gold/10 text-warmwhite font-medium'
+                      : 'border-charcoal-border bg-charcoal text-beige hover:border-charcoal-border/80'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="cancelReason"
+                    value={reason}
+                    checked={cancelReasonPreset === reason}
+                    onChange={() => setCancelReasonPreset(reason)}
+                    className="accent-gold"
+                  />
+                  <span>{reason}</span>
+                </label>
+              ))}
+
+              {cancelReasonPreset === 'Other' && (
+                <div className="pt-2">
+                  <label className="block text-[11px] text-beige-muted mb-1 font-medium">Specify Custom Reason:</label>
+                  <textarea
+                    rows={2}
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    placeholder="Enter detailed reason for cancellation..."
+                    className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-xs text-warmwhite focus:border-gold focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-charcoal-border">
+              <button
+                type="button"
+                onClick={() => setIsCancelModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-charcoal border border-charcoal-border text-beige hover:text-warmwhite text-xs font-semibold transition-all"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={handleConfirmCancel}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center space-x-1.5"
+              >
+                {isCancelling ? (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cancelling...</span>
+                  </>
+                ) : (
+                  <span>Confirm Cancellation</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tax Invoice Modal */}
       {showPrintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/85 backdrop-blur-md animate-fadeIn">
           <div className="bg-white text-gray-900 p-8 rounded-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto shadow-2xl relative">
             <div className="flex justify-between items-start border-b pb-4 mb-4">
               <div>
-                <h2 className="text-xl font-serif font-bold text-gray-950 tracking-wider">HESTIIA RESTAURANT</h2>
-                <p className="text-xs text-gray-600">PAC Road, Shyam Nagar, Kanpur, UP 208013</p>
-                <p className="text-xs text-gray-600">Phone: +91 78808 40622 | GSTIN: 09AAAFH1234F1Z5</p>
+                <h2 className="text-xl font-serif font-bold text-gray-950 tracking-wider">
+                  {settings?.restaurantName || 'HESTIIYA RESTAURANT'}
+                </h2>
+                <p className="text-xs text-gray-600">
+                  {settings?.address || 'PAC Road, Shyam Nagar, Kanpur, UP 208013'}
+                </p>
+                <p className="text-xs text-gray-600">
+                  Phone: {settings?.phone || '+91 78808 40622'} {settings?.gstin ? `| GSTIN: ${settings.gstin}` : ''}
+                </p>
               </div>
               <div className="text-right">
                 <span className="text-xs font-bold uppercase tracking-wider text-amber-700 block">TAX INVOICE</span>
-                <span className="text-xs font-mono font-bold text-gray-800">{order.invoiceNumber}</span>
+                <span className="text-xs font-mono font-bold text-gray-800">
+                  {invoice?.invoiceNumber || order.invoiceNumber || `INV-${order.orderNumber}`}
+                </span>
                 <span className="text-[10px] text-gray-500 block">Date: {new Date(order.createdAt).toLocaleDateString('en-IN')}</span>
               </div>
             </div>
@@ -495,13 +651,19 @@ export const OrderDetails: React.FC = () => {
                 <span>₹{order.subtotal}</span>
               </div>
               <div className="flex justify-between">
-                <span>GST (5.0%)</span>
+                <span>GST ({settings?.taxRatePercent ? `${settings.taxRatePercent}%` : '5.0%'})</span>
                 <span>₹{order.taxAmount}</span>
               </div>
               {order.deliveryCharge > 0 && (
                 <div className="flex justify-between">
                   <span>Delivery Charge</span>
                   <span>₹{order.deliveryCharge}</span>
+                </div>
+              )}
+              {order.discountAmount > 0 && (
+                <div className="flex justify-between text-green-700 font-medium">
+                  <span>Discount</span>
+                  <span>-₹{order.discountAmount}</span>
                 </div>
               )}
               <div className="flex justify-between text-base font-bold text-gray-950 pt-2 border-t">
@@ -511,7 +673,7 @@ export const OrderDetails: React.FC = () => {
             </div>
 
             <div className="mt-6 text-center text-[10px] text-gray-500 italic">
-              Thank you for dining with Hestiia Restaurant! Powered by DIMISI Technologies.
+              Thank you for dining with {settings?.restaurantName || 'Hestiia Restaurant'}! Powered by DIMISI Technologies.
             </div>
 
             <div className="mt-6 flex justify-end space-x-3 print:hidden">

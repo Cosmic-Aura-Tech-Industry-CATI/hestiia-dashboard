@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 interface Toast {
@@ -35,12 +35,19 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const contextValue: ToastContextType = {
-    toast: addToast,
-    success: (msg, title) => addToast(msg, 'success', title),
-    error: (msg, title) => addToast(msg, 'error', title),
-    info: (msg, title) => addToast(msg, 'info', title),
-  };
+  const success = useCallback((msg: string, title?: string) => addToast(msg, 'success', title), [addToast]);
+  const error = useCallback((msg: string, title?: string) => addToast(msg, 'error', title), [addToast]);
+  const info = useCallback((msg: string, title?: string) => addToast(msg, 'info', title), [addToast]);
+
+  const contextValue = useMemo<ToastContextType>(
+    () => ({
+      toast: addToast,
+      success,
+      error,
+      info,
+    }),
+    [addToast, success, error, info]
+  );
 
   return (
     <ToastContext.Provider value={contextValue}>

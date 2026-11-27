@@ -31,8 +31,17 @@ export const PaymentsManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState<{ invoice: Invoice; restaurant: RestaurantSettings } | null>(null);
+  const [gatewayAnalytics, setGatewayAnalytics] = useState<any>(null);
 
   const { success, error } = useToast();
+
+  useEffect(() => {
+    adminApi.getAnalyticsPayments({ preset: 'last30days' })
+      .then((res) => {
+        if (res.success) setGatewayAnalytics(res.payments);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchFinancialData = async () => {
     try {
@@ -103,7 +112,7 @@ export const PaymentsManagement: React.FC = () => {
       />
 
       {/* Metric Highlights */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-2xl bg-charcoal-card border border-emerald-600/30">
           <span className="text-xs text-emerald-400 font-medium">Reconciled Verified Collections</span>
           <div className="font-serif text-3xl font-bold text-emerald-300 mt-1">
@@ -118,6 +127,16 @@ export const PaymentsManagement: React.FC = () => {
             ₹{pendingCollection.toLocaleString('en-IN')}
           </div>
           <span className="text-[10px] text-amber-400/80">Awaiting counter delivery collection</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-charcoal-card border border-charcoal-border">
+          <span className="text-xs text-beige font-medium">Gateway Success Rate</span>
+          <div className="font-serif text-3xl font-bold text-warmwhite mt-1">
+            {gatewayAnalytics ? `${gatewayAnalytics.paymentSuccessRate}%` : '100%'}
+          </div>
+          <span className="text-[10px] text-beige-muted">
+            {gatewayAnalytics?.successfulPayments ?? payments.length} captured transactions
+          </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-charcoal-card border border-charcoal-border">

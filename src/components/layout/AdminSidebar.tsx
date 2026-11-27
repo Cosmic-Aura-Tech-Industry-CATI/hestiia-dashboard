@@ -22,8 +22,12 @@ import {
   LogOut,
   ExternalLink,
   X,
+  ShieldAlert,
+  TicketPercent,
+  Bell,
 } from 'lucide-react';
 import { AdminUser } from '../../types';
+import { isStaffRole } from '../../services/apiClient';
 
 interface AdminSidebarProps {
   user: AdminUser | null;
@@ -33,25 +37,30 @@ interface AdminSidebarProps {
 }
 
 const navItems = [
-  { label: 'Overview', icon: LayoutDashboard, path: '/admin/dashboard' },
-  { label: 'Orders', icon: ShoppingBag, path: '/admin/orders' },
-  { label: 'Food Menu', icon: UtensilsCrossed, path: '/admin/menu' },
-  { label: 'Categories', icon: Tags, path: '/admin/categories' },
-  { label: 'Customers', icon: Users, path: '/admin/customers' },
-  { label: 'Payments & Billing', icon: CreditCard, path: '/admin/payments' },
-  { label: 'Table Bookings', icon: CalendarCheck, path: '/admin/bookings' },
-  { label: 'Party Inquiries', icon: PartyPopper, path: '/admin/party-inquiries' },
-  { label: 'Website Content', icon: Globe, path: '/admin/website-content' },
-  { label: 'Promotions', icon: Flame, path: '/admin/promotions' },
-  { label: 'Gallery', icon: GalleryIcon, path: '/admin/gallery' },
-  { label: 'Reviews', icon: MessageSquareQuote, path: '/admin/reviews' },
-  { label: 'Reports', icon: BarChart3, path: '/admin/reports' },
-  { label: 'Restaurant Settings', icon: Settings, path: '/admin/settings' },
-  { label: 'My Profile', icon: UserCircle, path: '/admin/profile' },
+  { label: 'Overview', icon: LayoutDashboard, path: '/admin/dashboard', staffAllowed: true },
+  { label: 'Orders', icon: ShoppingBag, path: '/admin/orders', staffAllowed: true },
+  { label: 'Food Menu', icon: UtensilsCrossed, path: '/admin/menu', staffAllowed: false },
+  { label: 'Categories', icon: Tags, path: '/admin/categories', staffAllowed: false },
+  { label: 'Customers', icon: Users, path: '/admin/customers', staffAllowed: false },
+  { label: 'Payments & Billing', icon: CreditCard, path: '/admin/payments', staffAllowed: false },
+  { label: 'Table Bookings', icon: CalendarCheck, path: '/admin/bookings', staffAllowed: true },
+  { label: 'Party Inquiries', icon: PartyPopper, path: '/admin/party-inquiries', staffAllowed: false },
+  { label: 'Website Content', icon: Globe, path: '/admin/website-content', staffAllowed: false },
+  { label: 'Promotions', icon: Flame, path: '/admin/promotions', staffAllowed: false },
+  { label: 'Coupons & Offers', icon: TicketPercent, path: '/admin/offers', staffAllowed: true },
+  { label: 'Gallery', icon: GalleryIcon, path: '/admin/gallery', staffAllowed: false },
+  { label: 'Reviews', icon: MessageSquareQuote, path: '/admin/reviews', staffAllowed: false },
+  { label: 'Reports', icon: BarChart3, path: '/admin/reports', staffAllowed: false },
+  { label: 'Audit Trail', icon: ShieldAlert, path: '/admin/audit', staffAllowed: false },
+  { label: 'Notifications', icon: Bell, path: '/admin/notifications', staffAllowed: true },
+  { label: 'Restaurant Settings', icon: Settings, path: '/admin/settings', staffAllowed: false },
+  { label: 'My Profile', icon: UserCircle, path: '/admin/profile', staffAllowed: true },
 ];
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClose, onLogout }) => {
   const pathname = usePathname() || '';
+  const isStaff = isStaffRole(user?.role);
+  const visibleNavItems = isStaff ? navItems.filter((item) => item.staffAllowed) : navItems;
 
   return (
     <>
@@ -85,7 +94,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
                   HESTIIA
                 </span>
                 <span className="text-[9px] uppercase tracking-widest text-gold font-semibold">
-                  Admin System
+                  {isStaff ? 'Staff Operations' : 'Admin System'}
                 </span>
               </div>
             </Link>
@@ -100,7 +109,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ user, isOpen, onClos
 
           {/* Navigation Items */}
           <nav className="p-3 space-y-1 max-h-[calc(100vh-140px)] overflow-y-auto">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 pathname === item.path ||

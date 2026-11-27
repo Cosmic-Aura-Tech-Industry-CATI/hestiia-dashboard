@@ -17,6 +17,9 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
+  BarChart3,
+  UtensilsCrossed,
+  Radio,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -30,26 +33,49 @@ import {
   Cell,
 } from 'recharts';
 import { adminApi } from '../services/adminApi';
+import { getCachedAuthUser, isStaffRole } from '../services/apiClient';
+import { AdminUser, Order, TableBooking } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingState } from '../components/common/LoadingState';
 
 export const DashboardOverview: React.FC = () => {
   const [data, setData] = useState<any>(null);
+  const [staffData, setStaffData] = useState<{ liveOrders: Order[]; bookings: TableBooking[] } | null>(null);
+  const [isStaff, setIsStaff] = useState(false);
+  const [userName, setUserName] = useState<string>('Team Member');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLiveMode, setIsLiveMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOverview = async () => {
+  const fetchOverview = async (silent = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       setError(null);
-      const res = await adminApi.getDashboardOverview();
-      if (res.success) {
-        setData(res);
+
+      const currentUser = getCachedAuthUser<AdminUser>();
+      const staffMode = isStaffRole(currentUser?.role);
+      setIsStaff(staffMode);
+      if (currentUser?.name) setUserName(currentUser.name);
+
+      if (staffMode) {
+        const [liveRes, bookingsRes] = await Promise.all([
+          adminApi.getLiveOrders(),
+          adminApi.getBookings({ limit: 8 }).catch(() => ({ success: false, bookings: [] as TableBooking[] })),
+        ]);
+        setStaffData({
+          liveOrders: liveRes.success ? liveRes.liveOrders || [] : [],
+          bookings: bookingsRes.success ? bookingsRes.bookings || [] : [],
+        });
+      } else {
+        const res = await adminApi.getDashboardOverview();
+        if (res.success) {
+          setData(res);
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load restaurant dashboard data.');
+      if (!silent) setError(err.message || 'Failed to load restaurant dashboard data.');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -57,8 +83,178 @@ export const DashboardOverview: React.FC = () => {
     fetchOverview();
   }, []);
 
+  // 30s Live Auto-Refresh polling effect for Shift Management
+  useEffect(() => {
+    if (!isLiveMode) return;
+    const interval = setInterval(() => {
+      fetchOverview(true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isLiveMode]);
+
   if (isLoading) {
-    return <LoadingState message="Aggregating live restaurant analytics..." />;
+    return <LoadingState message={isStaff ? 'Loading live kitchen & floor operations...' : 'Aggregating live restaurant analytics...'} />;
+  }
+
+  if (isStaff && staffData) {
+    return (
+      <div className="space-y-6">
+        {/* Staff Welcome Banner */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-charcoal-card via-espresso-light/60 to-charcoal-card border border-gold/30 shadow-2xl">
+          <div>
+            <div className="inline-flex items-center space-x-2 text-gold text-xs font-semibold uppercase tracking-widest mb-1">
+              <Sparkles className="w-4 h-4" />
+              <span>Hestiia Staff Operations Console</span>
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold text-warmwhite tracking-wide">
+              Namaste, {userName}
+            </h1>
+            <p className="text-xs text-beige mt-1">
+              Live kitchen queue and dining floor table reservations for your active shift.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsLiveMode((prev) => !prev)}
+              className={`px-3.5 py-2.5 rounded-xl border text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+                isLiveMode
+                  ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                  : 'bg-charcoal border-charcoal-border text-beige-muted'
+              }`}
+            >
+              <Radio className={`w-3.5 h-3.5 ${isLiveMode ? 'text-emerald-400 animate-pulse' : 'text-beige-muted'}`} />
+              <span>{isLiveMode ? 'Live Shift Sync (30s)' : 'Live Sync Paused'}</span>
+            </button>
+
+            <Link
+              href="/admin/orders"
+              className="px-4 py-2.5 rounded-xl bg-gold hover:bg-gold-dark text-charcoal-950 font-bold text-xs uppercase tracking-wider shadow-gold-sm flex items-center space-x-1.5 transition-all"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Open Kitchen Orders</span>
+            </Link>
+
+            <Link
+              href="/admin/bookings"
+              className="px-4 py-2.5 rounded-xl bg-charcoal border border-charcoal-border hover:border-gold/40 text-warmwhite text-xs font-semibold flex items-center space-x-1.5 transition-all"
+            >
+              <CalendarCheck className="w-4 h-4 text-gold" />
+              <span>Table Bookings</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Staff KPI Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            href="/admin/orders"
+            className="p-5 rounded-2xl bg-charcoal-card border border-charcoal-border hover:border-gold/40 transition-all shadow-sm group"
+          >
+            <div className="flex items-center justify-between text-beige mb-2">
+              <span className="text-xs font-medium">Active Kitchen Orders</span>
+              <div className="p-2 rounded-xl bg-charcoal border border-charcoal-border text-gold">
+                <Flame className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="font-serif text-3xl font-bold text-warmwhite">{staffData.liveOrders.length}</div>
+            <div className="text-[11px] text-gold mt-1 flex items-center space-x-1">
+              <span>Manage preparation &amp; dispatch</span>
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/bookings"
+            className="p-5 rounded-2xl bg-charcoal-card border border-charcoal-border hover:border-gold/40 transition-all shadow-sm group"
+          >
+            <div className="flex items-center justify-between text-beige mb-2">
+              <span className="text-xs font-medium">Recent Table Inquiries</span>
+              <div className="p-2 rounded-xl bg-charcoal border border-charcoal-border text-gold">
+                <CalendarCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="font-serif text-3xl font-bold text-warmwhite">{staffData.bookings.length}</div>
+            <div className="text-[11px] text-gold mt-1 flex items-center space-x-1">
+              <span>Allocate tables &amp; confirm guests</span>
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+        </div>
+
+        {/* Live Kitchen Orders & Table Reservations */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-5 sm:p-6 rounded-3xl bg-charcoal-card border border-charcoal-border shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-serif text-base font-semibold text-warmwhite flex items-center space-x-2">
+                <Flame className="w-4 h-4 text-gold" />
+                <span>Live Kitchen Queue</span>
+              </h3>
+              <Link href="/admin/orders" className="text-xs text-gold hover:underline">
+                View All Orders &rarr;
+              </Link>
+            </div>
+            {staffData.liveOrders.length === 0 ? (
+              <p className="text-xs text-beige-muted py-6 text-center">No active orders in the kitchen right now.</p>
+            ) : (
+              <div className="space-y-3">
+                {staffData.liveOrders.slice(0, 6).map((order) => (
+                  <Link
+                    key={order.id}
+                    href={`/admin/orders/${order.id}`}
+                    className="block p-3.5 rounded-2xl bg-charcoal border border-charcoal-border hover:border-gold/40 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-serif font-bold text-gold">#{order.orderNumber}</span>
+                      <StatusBadge status={order.orderStatus} type="order" />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-beige">
+                      <span>{order.customerName} ({order.fulfillmentType})</span>
+                      <span className="font-semibold text-warmwhite">₹{order.grandTotal}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 sm:p-6 rounded-3xl bg-charcoal-card border border-charcoal-border shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-serif text-base font-semibold text-warmwhite flex items-center space-x-2">
+                <CalendarCheck className="w-4 h-4 text-gold" />
+                <span>Dining Floor Reservations</span>
+              </h3>
+              <Link href="/admin/bookings" className="text-xs text-gold hover:underline">
+                Manage Bookings &rarr;
+              </Link>
+            </div>
+            {staffData.bookings.length === 0 ? (
+              <p className="text-xs text-beige-muted py-6 text-center">No recent table reservation inquiries.</p>
+            ) : (
+              <div className="space-y-3">
+                {staffData.bookings.slice(0, 6).map((booking) => (
+                  <Link
+                    key={booking.id}
+                    href="/admin/bookings"
+                    className="block p-3.5 rounded-2xl bg-charcoal border border-charcoal-border hover:border-gold/40 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-warmwhite">{booking.customerName}</span>
+                      <StatusBadge status={booking.status} type="booking" />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-beige">
+                      <span>{booking.date} • {booking.time} • {booking.guests}</span>
+                      {booking.allocatedTable && <span className="text-emerald-400">{booking.allocatedTable}</span>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -68,7 +264,7 @@ export const DashboardOverview: React.FC = () => {
         <h3 className="font-serif text-lg text-warmwhite font-semibold">Unable to load dashboard metrics</h3>
         <p className="text-xs text-beige max-w-md mx-auto my-2">{error}</p>
         <button
-          onClick={fetchOverview}
+          onClick={() => fetchOverview()}
           className="mt-3 px-4 py-2 bg-gold text-charcoal-950 rounded-xl text-xs font-bold uppercase tracking-wider"
         >
           Retry Connection
@@ -97,6 +293,28 @@ export const DashboardOverview: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2.5 flex-wrap">
+          {/* Live Shift Mode Toggle */}
+          <button
+            onClick={() => setIsLiveMode((prev) => !prev)}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all border cursor-pointer ${
+              isLiveMode
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : 'bg-charcoal border-charcoal-border text-beige-muted hover:text-warmwhite'
+            }`}
+            title="Toggle automatic 30s polling for live restaurant operations"
+          >
+            <Radio className={`w-3.5 h-3.5 ${isLiveMode ? 'animate-pulse text-emerald-400' : ''}`} />
+            <span>{isLiveMode ? 'Live Shift Active' : 'Live Sync Paused'}</span>
+          </button>
+
+          <Link
+            href="/admin/reports"
+            className="px-3.5 py-2.5 rounded-xl bg-charcoal border border-charcoal-border hover:border-gold/50 text-warmwhite text-xs font-semibold flex items-center space-x-1.5 transition-all"
+          >
+            <BarChart3 className="w-4 h-4 text-gold" />
+            <span>BI Analytics</span>
+          </Link>
+
           <Link
             href="/admin/menu"
             className="px-4 py-2.5 rounded-xl bg-gold hover:bg-gold-dark text-charcoal-950 font-bold text-xs uppercase tracking-wider shadow-gold-sm flex items-center space-x-1.5 transition-all"
@@ -113,6 +331,48 @@ export const DashboardOverview: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Operational Attention Strip (Unavailable dishes, Bookings, Parties) */}
+      {(metrics.unavailableDishesCount > 0 || metrics.pendingBookingsCount > 0 || metrics.pendingPartiesCount > 0) && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-charcoal-card border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center space-x-2 text-xs text-amber-300 font-medium">
+            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span>Operational Items Requiring Attention:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {metrics.unavailableDishesCount > 0 && (
+              <Link
+                href="/admin/menu"
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/25 transition-colors"
+              >
+                <UtensilsCrossed className="w-3.5 h-3.5" />
+                <span>{metrics.unavailableDishesCount} Dish(es) 86&apos;d / Unavailable</span>
+              </Link>
+            )}
+
+            {metrics.pendingBookingsCount > 0 && (
+              <Link
+                href="/admin/bookings"
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-semibold hover:bg-blue-500/25 transition-colors"
+              >
+                <CalendarCheck className="w-3.5 h-3.5" />
+                <span>{metrics.pendingBookingsCount} Table Reservation(s) Awaiting Review</span>
+              </Link>
+            )}
+
+            {metrics.pendingPartiesCount > 0 && (
+              <Link
+                href="/admin/party-inquiries"
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-semibold hover:bg-purple-500/25 transition-colors"
+              >
+                <PartyPopper className="w-3.5 h-3.5" />
+                <span>{metrics.pendingPartiesCount} Party Event Inquiry Pending</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 8 Primary Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">

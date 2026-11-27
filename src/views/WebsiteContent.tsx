@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Globe, Save, CheckCircle2, AlertCircle, Sparkles, ExternalLink } from 'lucide-react';
+import { Globe, Save, Sparkles, ExternalLink, Lock } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
-import { RestaurantSettings } from '../types';
+import { getCachedAuthUser, isStaffRole } from '../services/apiClient';
+import { AdminUser, RestaurantSettings } from '../types';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
 import { useToast } from '../components/common/ToastContext';
 
 export const WebsiteContent: React.FC = () => {
+  const currentUser = getCachedAuthUser<AdminUser>();
+  const isStaff = isStaffRole(currentUser?.role);
+
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -16,6 +20,10 @@ export const WebsiteContent: React.FC = () => {
   const { success, error } = useToast();
 
   useEffect(() => {
+    if (isStaff) {
+      setIsLoading(false);
+      return;
+    }
     adminApi
       .getSettings()
       .then((res) => {
@@ -23,7 +31,7 @@ export const WebsiteContent: React.FC = () => {
       })
       .catch((err) => error(err.message || 'Failed to load website content.'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isStaff]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +42,7 @@ export const WebsiteContent: React.FC = () => {
       const res = await adminApi.updateSettings(settings);
       if (res.success) {
         setSettings(res.settings);
+        window.dispatchEvent(new CustomEvent('hestiia:settings-updated', { detail: res.settings }));
         success('Website content and copy updated live on public site.');
       }
     } catch (err: any) {
@@ -42,6 +51,24 @@ export const WebsiteContent: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  if (isStaff) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Public Website Content & Copy"
+          subtitle="Live editorial control over hero banners, tagline, story, atmosphere, and social presence"
+        />
+        <div className="p-8 rounded-3xl bg-charcoal-card border border-charcoal-border text-center space-y-2">
+          <Lock className="w-8 h-8 text-gold mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-warmwhite">Manager / Admin Access Required</h3>
+          <p className="text-xs text-beige max-w-md mx-auto">
+            Website content &amp; branding configuration is restricted to Manager and Admin accounts.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !settings) {
     return <LoadingState message="Fetching live website copy and assets..." />;
@@ -151,6 +178,27 @@ export const WebsiteContent: React.FC = () => {
                 value={settings.whatsapp || ''}
                 onChange={(e) => setSettings({ ...settings, whatsapp: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-warmwhite focus:border-gold focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-beige mb-1 font-medium">Public Contact Email</label>
+              <input
+                type="email"
+                value={settings.email || ''}
+                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-warmwhite focus:border-gold focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-beige mb-1 font-medium">Zomato Rating Badge</label>
+              <input
+                type="text"
+                placeholder="e.g. 4.8"
+                value={settings.zomatoRating || ''}
+                onChange={(e) => setSettings({ ...settings, zomatoRating: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-warmwhite focus:border-gold focus:outline-none font-mono"
               />
             </div>
 

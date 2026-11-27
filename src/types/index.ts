@@ -18,12 +18,15 @@ export interface AdminUser {
 
 export interface FoodCategory {
   id: string;
+  _id?: string;
   name: string;
-  slug: string;
+  slug?: string;
   description: string;
   displayOrder: number;
   isActive: boolean;
   itemCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FoodItem {
@@ -74,13 +77,22 @@ export interface Order {
   fulfillmentType: 'dine-in' | 'pickup' | 'delivery';
   items: OrderItem[];
   subtotal: number;
+  subtotalInPaise?: number;
   taxAmount: number;
+  taxInPaise?: number;
   deliveryCharge: number;
+  deliveryInPaise?: number;
   discountAmount: number;
+  discountInPaise?: number;
   grandTotal: number;
+  grandTotalInPaise?: number;
   paymentMethod: 'online' | 'cod' | 'upi';
-  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
+  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded' | 'awaiting_verification';
   orderStatus: 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'completed' | 'cancelled';
+  cancellationReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  idempotencyKey?: string;
   notes?: string;
   statusHistory: OrderStatusHistoryItem[];
   invoiceNumber: string;
@@ -106,7 +118,7 @@ export interface Payment {
   orderNumber: string;
   amount: number;
   paymentMethod: 'online' | 'cod' | 'upi';
-  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
+  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded' | 'awaiting_verification';
   transactionDate: string;
   gatewayTransactionReference?: string;
   collectedBy?: string;
@@ -133,6 +145,7 @@ export interface Invoice {
 
 export interface TableBooking {
   id: string;
+  _id?: string;
   bookingRef?: string;
   customerName: string;
   phone: string;
@@ -145,6 +158,7 @@ export interface TableBooking {
   status: 'new' | 'contacted' | 'confirmed' | 'rescheduled' | 'rejected' | 'completed' | 'cancelled';
   allocatedTable?: string;
   confirmedAt?: string;
+  confirmationMethod?: 'on-screen' | 'whatsapp' | 'call';
   holdPolicy?: string;
   staffNotes?: string;
   createdAt: string;
@@ -153,6 +167,7 @@ export interface TableBooking {
 
 export interface PartyInquiry {
   id: string;
+  _id?: string;
   customerName: string;
   phone: string;
   email?: string;
@@ -161,7 +176,7 @@ export interface PartyInquiry {
   guestCount: number;
   budgetRange?: string;
   specialRequirements?: string;
-  status: 'new' | 'contacted' | 'confirmed' | 'rejected';
+  status: 'new' | 'contacted' | 'quoted' | 'confirmed' | 'cancelled';
   staffNotes?: string;
   followUpDate?: string;
   createdAt: string;
@@ -170,6 +185,7 @@ export interface PartyInquiry {
 
 export interface Promotion {
   id: string;
+  _id?: string;
   title: string;
   subtitle: string;
   price: number;
@@ -182,20 +198,69 @@ export interface Promotion {
   endDate?: string;
   isActive: boolean;
   displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface GalleryPhoto {
+export type MediaSource = 'official' | 'customer';
+export type ModerationStatus = 'pending' | 'approved' | 'rejected' | 'removed';
+export type PublicationStatus = 'draft' | 'published' | 'archived';
+export type MediaVisibility = 'public' | 'private';
+
+export interface GallerySection {
   id: string;
-  title: string;
-  category: string;
-  image: string;
-  description: string;
-  isFeatured: boolean;
+  _id?: string;
+  name: string;
+  description?: string;
+  slug: string;
   displayOrder: number;
+  isActive: boolean;
+  isPublic: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GalleryMedia {
+  id: string;
+  _id?: string;
+  title?: string;
+  caption?: string;
+  description?: string;
+  altText?: string;
+  imageUrl: string;
+  publicId: string;
+  storageProvider: 'cloudinary' | 'local';
+  mimeType: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  format?: string;
+  uploaderType: 'admin' | 'customer';
+  uploadedByAdmin?: string;
+  sectionId?: string;
+  mediaSource: MediaSource;
+  moderationStatus: ModerationStatus;
+  publicationStatus: PublicationStatus;
+  visibility: MediaVisibility;
+  displayOrder: number;
+  rejectionReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MediaModerationRecord {
+  id: string;
+  _id?: string;
+  mediaId: string;
+  reviewedBy: string;
+  action: 'approved' | 'rejected' | 'removed';
+  reason?: string;
+  reviewedAt: string;
 }
 
 export interface ReviewItem {
   id: string;
+  _id?: string;
   customerName: string;
   rating: number;
   comment: string;
@@ -204,6 +269,7 @@ export interface ReviewItem {
   isApproved: boolean;
   staffReply?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface RestaurantSettings {
@@ -225,7 +291,187 @@ export interface RestaurantSettings {
   orderAcceptanceEnabled: boolean;
   tableReservationEnabled: boolean;
   invoicePrefix: string;
+  gstin?: string;
   zomatoRating: string;
   socialInstagram: string;
   socialFacebook: string;
 }
+
+export * from './analytics';
+
+export interface AuditLogEntry {
+  id: string;
+  _id?: string;
+  action: string;
+  user: string;
+  details: string;
+  ip?: string;
+  timestamp: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AuditStats {
+  totalLogs: number;
+  uniqueUsersCount: number;
+  actionBreakdown: Record<string, number>;
+  recentActions: AuditLogEntry[];
+}
+
+export interface AuditLogQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  action?: string;
+  user?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export type OfferDiscountType = 'percentage' | 'fixed' | 'free_shipping';
+export type OfferFulfillmentType = 'delivery' | 'dine-in' | 'pickup';
+
+export interface Offer {
+  id: string;
+  _id?: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountType: OfferDiscountType;
+  discountValue: number;
+  maxDiscountAmount?: number;
+  minOrderValue: number;
+  startDate?: string;
+  endDate?: string;
+  usageLimit?: number;
+  usedCount: number;
+  perUserLimit: number;
+  applicableFulfillment: OfferFulfillmentType[];
+  displayOnBanner: boolean;
+  bannerText?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OfferCounts {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+export interface OfferValidationResult {
+  success?: boolean;
+  valid: boolean;
+  code: string;
+  discountType: OfferDiscountType;
+  discountValue: number;
+  discountPaise: number;
+  discountAmount: number;
+  message: string;
+  offer?: Partial<Offer>;
+}
+
+export interface ProcessedUploadResult {
+  success?: boolean;
+  url: string;
+  filename: string;
+  size: number;
+  provider: 'cloudinary' | 'local';
+  publicId?: string;
+  format?: string;
+  width?: number;
+  height?: number;
+  mimeType?: string;
+  originalName?: string;
+  message?: string;
+}
+
+export interface MultipleUploadResult {
+  success: boolean;
+  count: number;
+  files: ProcessedUploadResult[];
+  message?: string;
+}
+
+export interface UploadStorageStats {
+  success?: boolean;
+  provider: 'cloudinary' | 'local' | 'hybrid';
+  isCloudinaryConfigured: boolean;
+  localFileCount: number;
+  localTotalBytes: number;
+  localTotalMegabytes: number;
+  uploadsDirectory: string;
+  allowedMimeTypes: string[];
+  maxFileSizeBytes: number;
+  maxFileSizeMB: number;
+}
+
+export interface DeleteUploadResult {
+  success?: boolean;
+  deleted: boolean;
+  filename: string;
+  provider: 'cloudinary' | 'local' | 'both';
+  message: string;
+}
+
+export interface TaxReportResponse {
+  success?: boolean;
+  period: string;
+  startDate: string;
+  endDate: string;
+  grossSales: number;
+  exemptOrDiscount: number;
+  taxableSales: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  totalGst: number;
+  paidOrdersCount: number;
+}
+
+export interface ReportsModuleStatus {
+  success?: boolean;
+  module: string;
+  status: string;
+  database: string;
+  timestamp: string;
+}
+
+export type NotificationChannel = 'in_app' | 'email' | 'sms' | 'push';
+export type NotificationRecipientType = 'customer' | 'staff' | 'admin';
+
+export interface NotificationItem {
+  id: string;
+  _id?: string;
+  recipientType: NotificationRecipientType;
+  recipientId?: string;
+  title: string;
+  message: string;
+  channel: NotificationChannel;
+  isRead: boolean;
+  readAt?: string;
+  metadata?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateNotificationDTO {
+  recipientType?: NotificationRecipientType;
+  recipientId?: string;
+  title: string;
+  message: string;
+  channel?: NotificationChannel;
+  metadata?: Record<string, any>;
+}
+
+export interface NotificationQuery {
+  recipientId?: string;
+  recipientType?: NotificationRecipientType;
+  isRead?: boolean | string;
+  channel?: NotificationChannel;
+  limit?: number;
+  skip?: number;
+}
+
+
+

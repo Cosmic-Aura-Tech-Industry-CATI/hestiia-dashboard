@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Phone, Mail, ShoppingBag, Eye, Calendar, UserCheck, X } from 'lucide-react';
+import { Search, Phone, Mail, ShoppingBag, Eye, Calendar, UserCheck, X, Award, Users, TrendingUp } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
 import { Customer, Order } from '../types';
 import { PageHeader } from '../components/common/PageHeader';
@@ -17,8 +17,17 @@ export const CustomersManagement: React.FC = () => {
   const [sortBy, setSortBy] = useState('totalSpent');
   const [selectedCustomer, setSelectedCustomer] = useState<{ customer: Customer; orders: Order[] } | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [customerAnalytics, setCustomerAnalytics] = useState<any>(null);
 
   const { error } = useToast();
+
+  useEffect(() => {
+    adminApi.getAnalyticsCustomers({ preset: 'last30days' })
+      .then((res) => {
+        if (res.success) setCustomerAnalytics(res.customers);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchCustomers = async () => {
     try {
@@ -66,6 +75,43 @@ export const CustomersManagement: React.FC = () => {
         title="Customer Directory & Order History"
         subtitle="Track patron loyalty, dining frequency, lifetime spending and order archives"
       />
+
+      {/* Customer Loyalty & Retention Intelligence Strip */}
+      {customerAnalytics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 rounded-2xl bg-charcoal-card border border-charcoal-border">
+            <span className="text-[10px] text-beige-muted uppercase tracking-wider font-semibold">Total Patrons</span>
+            <div className="text-xl font-serif font-bold text-warmwhite mt-0.5">
+              {customerAnalytics.totalUniqueCustomers || customers.length}
+            </div>
+            <span className="text-[10px] text-beige-muted">Unique guest records</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-charcoal-card border border-purple-500/30">
+            <span className="text-[10px] text-purple-400 uppercase tracking-wider font-semibold">Repeat Diner Rate</span>
+            <div className="text-xl font-serif font-bold text-purple-300 mt-0.5">
+              {customerAnalytics.repeatPurchaseRate}%
+            </div>
+            <span className="text-[10px] text-beige-muted">{customerAnalytics.returningCustomers} loyal regulars</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-charcoal-card border border-emerald-500/30">
+            <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">New Guest Ratio</span>
+            <div className="text-xl font-serif font-bold text-emerald-300 mt-0.5">
+              {customerAnalytics.newCustomers}
+            </div>
+            <span className="text-[10px] text-beige-muted">First-time diners this month</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-charcoal-card border border-charcoal-border">
+            <span className="text-[10px] text-gold uppercase tracking-wider font-semibold">Average Spend / Guest</span>
+            <div className="text-xl font-serif font-bold text-gold mt-0.5">
+              ₹{customerAnalytics.averageCustomerSpending.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10px] text-beige-muted">Lifetime dining average</span>
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search */}
       <div className="p-4 rounded-2xl bg-charcoal-card border border-charcoal-border shadow-sm flex flex-col sm:flex-row gap-3 justify-between items-center">
@@ -124,7 +170,15 @@ export const CustomersManagement: React.FC = () => {
                           {c.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-semibold text-warmwhite text-sm">{c.name}</div>
+                          <div className="font-semibold text-warmwhite text-sm flex items-center space-x-1.5">
+                            <span>{c.name}</span>
+                            {(c.totalOrders >= 4 || c.totalSpent >= 3000) && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gold/20 text-gold border border-gold/40 flex items-center space-x-0.5">
+                                <Award className="w-2.5 h-2.5" />
+                                <span>VIP</span>
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-beige-muted">Patron ID: {c.id}</div>
                         </div>
                       </div>

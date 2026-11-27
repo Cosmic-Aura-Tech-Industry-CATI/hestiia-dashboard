@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { adminApi } from '../../services/adminApi';
+import {
+  clearAuthSession,
+  getAuthToken,
+  getCachedAuthUser,
+  isStaffRole,
+  saveAuthSession,
+} from '../../services/apiClient';
 import { AdminUser, RestaurantSettings } from '../../types';
 import { LoadingState } from '../common/LoadingState';
 
@@ -16,54 +23,62 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('hestiia_admin_token');
+    const token = getAuthToken();
     if (!token) {
-      router.replace('/admin/login');
+      router.replace('/login');
       return;
     }
 
-    const cachedUser = localStorage.getItem('hestiia_admin_user');
+    const cachedUser = getCachedAuthUser<AdminUser>();
     if (cachedUser) {
-      try {
-        setUser(JSON.parse(cachedUser));
-      } catch (e) {
-        // Ignore parse error
-      }
+      setUser(cachedUser);
     }
 
-    // Verify session with server
-    Promise.all([
-      adminApi.getMe(),
-      adminApi.getSettings().catch(() => null),
-    ])
-      .then(([meRes, settingsRes]) => {
+    // Verify session with server first, then fetch role-appropriate settings
+    adminApi
+      .getMe()
+      .then(async (meRes) => {
         if (meRes.success && meRes.user) {
           setUser(meRes.user);
-          localStorage.setItem('hestiia_admin_user', JSON.stringify(meRes.user));
-        }
-        if (settingsRes && settingsRes.success) {
-          setSettings(settingsRes.settings);
+          saveAuthSession({ token, user: meRes.user });
+
+          const settingsRes = isStaffRole(meRes.user.role)
+            ? await adminApi.getPublicSettings().catch(() => null)
+            : await adminApi.getSettings().catch(() => null);
+
+          if (settingsRes && settingsRes.success) {
+            setSettings(settingsRes.settings);
+          }
         }
       })
       .catch(() => {
-        localStorage.removeItem('hestiia_admin_token');
-        localStorage.removeItem('hestiia_admin_user');
-        router.replace('/admin/login');
+        clearAuthSession();
+        router.replace('/login');
       })
       .finally(() => {
         setIsLoading(false);
       });
+
+    const handleSettingsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<RestaurantSettings>;
+      if (customEvent.detail) {
+        setSettings(customEvent.detail);
+      }
+    };
+    window.addEventListener('hestiia:settings-updated', handleSettingsUpdated);
+    return () => {
+      window.removeEventListener('hestiia:settings-updated', handleSettingsUpdated);
+    };
   }, [router]);
 
   const handleLogout = async () => {
     try {
       await adminApi.logout();
-    } catch (e) {
+    } catch {
       // Proceed with client logout even if network fails
     }
-    localStorage.removeItem('hestiia_admin_token');
-    localStorage.removeItem('hestiia_admin_user');
-    router.replace('/admin/login');
+    clearAuthSession();
+    router.replace('/login');
   };
 
   if (isLoading) {

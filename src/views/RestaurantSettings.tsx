@@ -1,29 +1,41 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle2, ShieldCheck, DollarSign, Clock, Store, MapPin } from 'lucide-react';
+import { Save, DollarSign, Clock, Store, HardDrive, Cloud, Lock, Receipt } from 'lucide-react';
 import { adminApi } from '../services/adminApi';
-import { RestaurantSettings as ISettings } from '../types';
+import { getCachedAuthUser, isStaffRole } from '../services/apiClient';
+import { AdminUser, RestaurantSettings as ISettings, UploadStorageStats } from '../types';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
 import { useToast } from '../components/common/ToastContext';
 
 export const RestaurantSettings: React.FC = () => {
+  const currentUser = getCachedAuthUser<AdminUser>();
+  const isStaff = isStaffRole(currentUser?.role);
+
   const [settings, setSettings] = useState<ISettings | null>(null);
+  const [storageStats, setStorageStats] = useState<UploadStorageStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const { success, error } = useToast();
 
   useEffect(() => {
-    adminApi
-      .getSettings()
-      .then((res) => {
-        if (res.success) setSettings(res.settings);
+    if (isStaff) {
+      setIsLoading(false);
+      return;
+    }
+    Promise.all([
+      adminApi.getSettings(),
+      adminApi.getUploadStats().catch(() => null),
+    ])
+      .then(([settingsRes, statsRes]) => {
+        if (settingsRes.success) setSettings(settingsRes.settings);
+        if (statsRes?.success) setStorageStats(statsRes);
       })
       .catch((err) => error(err.message || 'Failed to load restaurant settings.'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isStaff]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +46,7 @@ export const RestaurantSettings: React.FC = () => {
       const res = await adminApi.updateSettings(settings);
       if (res.success) {
         setSettings(res.settings);
+        window.dispatchEvent(new CustomEvent('hestiia:settings-updated', { detail: res.settings }));
         success('Restaurant operational parameters updated.');
       }
     } catch (err: any) {
@@ -42,6 +55,24 @@ export const RestaurantSettings: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  if (isStaff) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Restaurant Operational Settings"
+          subtitle="Manage billing rules, GST tax rates, delivery radius fees, order acceptance switch and business hours"
+        />
+        <div className="p-8 rounded-3xl bg-charcoal-card border border-charcoal-border text-center space-y-2">
+          <Lock className="w-8 h-8 text-gold mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-warmwhite">Manager / Admin Access Required</h3>
+          <p className="text-xs text-beige max-w-md mx-auto">
+            Restaurant operational and tax settings are restricted to Manager and Admin accounts.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !settings) {
     return <LoadingState message="Fetching restaurant operational configuration..." />;
@@ -185,6 +216,79 @@ export const RestaurantSettings: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Billing & Statutory Identity */}
+        <div className="p-6 rounded-3xl bg-charcoal-card border border-charcoal-border shadow-md space-y-4">
+          <h2 className="font-serif text-lg font-semibold text-warmwhite flex items-center space-x-2">
+            <Receipt className="w-5 h-5 text-gold" />
+            <span>Billing &amp; Statutory Identity</span>
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-beige mb-1 font-medium">Invoice Number Prefix</label>
+              <input
+                type="text"
+                placeholder="e.g. HST-INV"
+                value={settings.invoicePrefix || ''}
+                onChange={(e) => setSettings({ ...settings, invoicePrefix: e.target.value.toUpperCase() })}
+                className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-warmwhite focus:border-gold focus:outline-none font-mono uppercase"
+              />
+              <span className="text-[10px] text-beige-muted mt-1 block">Prefix used on generated tax invoices</span>
+            </div>
+
+            <div>
+              <label className="block text-beige mb-1 font-medium">GSTIN (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. 09AABCU9603R1ZM"
+                value={settings.gstin || ''}
+                onChange={(e) => setSettings({ ...settings, gstin: e.target.value.toUpperCase() })}
+                className="w-full px-3 py-2 rounded-xl bg-charcoal border border-charcoal-border text-warmwhite focus:border-gold focus:outline-none font-mono uppercase"
+              />
+              <span className="text-[10px] text-beige-muted mt-1 block">15-character Goods &amp; Services Tax ID</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Media & Upload Storage Health */}
+        {storageStats && (
+          <div className="p-6 rounded-3xl bg-charcoal-card border border-charcoal-border shadow-md space-y-4">
+            <h2 className="font-serif text-lg font-semibold text-warmwhite flex items-center space-x-2">
+              {storageStats.isCloudinaryConfigured ? (
+                <Cloud className="w-5 h-5 text-sky-400" />
+              ) : (
+                <HardDrive className="w-5 h-5 text-gold" />
+              )}
+              <span>Media Upload &amp; Storage Health</span>
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-charcoal border border-charcoal-border">
+                <span className="text-[10px] text-beige-muted uppercase tracking-wider block">Storage Provider</span>
+                <span className="font-semibold text-warmwhite capitalize mt-1 block">
+                  {storageStats.isCloudinaryConfigured ? 'Cloudinary CDN' : 'Local Disk'}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-charcoal border border-charcoal-border">
+                <span className="text-[10px] text-beige-muted uppercase tracking-wider block">Local Files</span>
+                <span className="font-mono font-bold text-gold mt-1 block">{storageStats.localFileCount}</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-charcoal border border-charcoal-border">
+                <span className="text-[10px] text-beige-muted uppercase tracking-wider block">Local Disk Used</span>
+                <span className="font-mono font-bold text-warmwhite mt-1 block">
+                  {storageStats.localTotalMegabytes} MB
+                </span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-charcoal border border-charcoal-border">
+                <span className="text-[10px] text-beige-muted uppercase tracking-wider block">Max Upload Limit</span>
+                <span className="font-mono font-bold text-emerald-300 mt-1 block">
+                  {storageStats.maxFileSizeMB} MB
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Submit */}
         <div className="flex items-center justify-end space-x-3 pt-3">
